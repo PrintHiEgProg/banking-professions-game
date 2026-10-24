@@ -152,6 +152,17 @@ export function person(look = {}, emo = 'neutral') {
   return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${parts.join('')}</svg>`;
 }
 
+// Внешность стажёра на выбор: форма банка — зелёная
+export const AVATARS = [
+  { style: 'short', hair: '#3b2a20', young: true, shirt: '#1f7a4d', bg: '#173326' },
+  { style: 'long', back: 'pony', hair: '#6b3e26', young: true, shirt: '#1f7a4d', bg: '#173326', earrings: true },
+  { style: 'curly', hair: '#1d1d1d', young: true, shirt: '#1f7a4d', bg: '#173326', skin: 2 },
+  { style: 'bun', hair: '#d9a066', young: true, shirt: '#1f7a4d', bg: '#173326', skin: 3 },
+  { style: 'cap', hair: '#2a1d17', young: true, shirt: '#1f7a4d', bg: '#173326', skin: 1 },
+  { style: 'side', hair: '#c0392b', young: true, glasses: true, shirt: '#1f7a4d', bg: '#173326' },
+];
+export const avatarSvg = (i = 0, emo = 'happy') => person(AVATARS[i] || AVATARS[0], emo);
+
 export function portrait(who, emo = 'neutral') {
   const draw = CHARACTERS[who];
   if (!draw) return '';

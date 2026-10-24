@@ -1,6 +1,6 @@
 // DOM-помощники: панели, всплывающие сообщения, задачи, счётчики, печатная машинка.
 import { audio } from './audio.js';
-import { portrait, NAMES } from './portraits.js';
+import { portrait, NAMES, avatarSvg } from './portraits.js';
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -180,7 +180,8 @@ export function termBar(title, ctx, extra = null) {
     el('div', { class: 'term-dots' }, el('i'), el('i'), el('i')),
     el('div', { class: 'term-title' }, title),
     extra,
-    el('div', { class: 'term-user' }, `👤 ${ctx.state.nickname}`),
+    el('div', { class: 'term-user' }, el('span', { class: 'tu-ava', html: avatarSvg(ctx.state.avatar || 0) }), ctx.state.nickname),
+    el('button', { class: 'tour-btn', 'aria-label': 'Как играть', title: 'Как играть', onClick: (e) => { const id = e.currentTarget.dataset.tour; if (id) tour(id, { force: true }); } }, '❓'),
   );
 }
 
@@ -218,3 +219,120 @@ export function moneyShort(n) {
 }
 
 export const VOICE = { gran: 420, irina: 560, mentor: 500, masha: 760, dima: 360, sys: 300, scammer: 240 };
+
+// ───────── обучение: подсветка элемента и короткая подсказка ─────────
+// Показывается один раз на устройстве; повторить можно кнопкой «❓» в шапке окна.
+// Пока подсказка на экране, игра стоит на паузе (таймеры, настроение клиента, броневик).
+const TOURS_KEY = 'bank.tours.v1';
+const TOURS = {};
+let tourOn = false;
+export const isTourActive = () => tourOn;
+export function defineTours(map) {
+  Object.assign(TOURS, map);
+}
+function toursSeen() {
+  try {
+    return JSON.parse(localStorage.getItem(TOURS_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+function markTour(id) {
+  try {
+    const s = toursSeen();
+    s[id] = 1;
+    localStorage.setItem(TOURS_KEY, JSON.stringify(s));
+  } catch {
+    // хранилище недоступно — подсказка просто покажется ещё раз
+  }
+}
+function toursOff() {
+  try {
+    return localStorage.getItem('bank.notours') === '1';
+  } catch {
+    return false;
+  }
+}
+export function resetTours() {
+  try {
+    localStorage.removeItem(TOURS_KEY);
+  } catch {
+    // нечего сбрасывать
+  }
+}
+
+export function tour(id, { force = false } = {}) {
+  const steps = (TOURS[id] || []).filter((s) => !s.when || s.when());
+  const helpBtn = document.querySelector('#overlay-root .panel .tour-btn');
+  if (helpBtn && steps.length) helpBtn.dataset.tour = id;
+  if (!steps.length || tourOn || (!force && (toursSeen()[id] || toursOff()))) return Promise.resolve();
+  tourOn = true;
+  markTour(id);
+  return new Promise((resolve) => {
+    const root = el('div', { id: 'tour', role: 'dialog', 'aria-live': 'polite' });
+    const hole = el('div', { class: 'tour-hole' });
+    const bubble = el('div', { class: 'tour-bubble' });
+    root.append(hole, bubble);
+    document.body.append(root);
+    let i = -1;
+    let target = null;
+    const finish = () => {
+      window.removeEventListener('resize', place);
+      root.remove();
+      tourOn = false;
+      resolve();
+    };
+    function place() {
+      if (!target || !target.isConnected) return;
+      const r = target.getBoundingClientRect();
+      const pad = 6;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const x = Math.max(4, r.left - pad);
+      const y = Math.max(4, r.top - pad);
+      const w = Math.min(vw - 8, r.right + pad) - x;
+      const h = Math.min(vh - 8, r.bottom + pad) - y;
+      Object.assign(hole.style, { left: `${x}px`, top: `${y}px`, width: `${Math.max(0, w)}px`, height: `${Math.max(0, h)}px` });
+      const bw = Math.min(360, vw - 24);
+      bubble.style.width = `${bw}px`;
+      const bh = bubble.offsetHeight;
+      const below = y + h + 12;
+      const above = y - 12 - bh;
+      let top = below + bh <= vh - 8 ? below : above >= 8 ? above : Math.max(8, vh - bh - 8);
+      if (top < 8) top = 8;
+      const left = Math.min(Math.max(12, x + w / 2 - bw / 2), vw - bw - 12);
+      bubble.style.left = `${left}px`;
+      bubble.style.top = `${top}px`;
+    }
+    function next() {
+      i++;
+      while (i < steps.length && !document.querySelector(steps[i].sel)) i++;
+      if (i >= steps.length) return finish();
+      const s = steps[i];
+      target = [...document.querySelectorAll(s.sel)].find((n) => n.offsetParent !== null) || document.querySelector(s.sel);
+      try {
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      } catch {
+        // старый браузер
+      }
+      bubble.innerHTML = '';
+      const last = i === steps.length - 1 || !steps.slice(i + 1).some((x) => document.querySelector(x.sel));
+      bubble.append(
+        el('div', { class: 'tb-head' }, el('span', {}, '💡 Как играть'), el('small', {}, `${i + 1}/${steps.length}`)),
+        el('p', {}, s.text),
+        el(
+          'div',
+          { class: 'tb-btns' },
+          last ? null : el('button', { class: 'btn ghost small', onClick: (e) => { e.stopPropagation(); finish(); } }, 'Пропустить'),
+          el('button', { class: 'btn primary small', onClick: (e) => { e.stopPropagation(); next(); } }, last ? 'Понятно ✓' : 'Дальше →'),
+        ),
+      );
+      requestAnimationFrame(place);
+      setTimeout(place, 260);
+      bubble.querySelector('.btn.primary').focus({ preventScroll: true });
+    }
+    root.addEventListener('click', next);
+    window.addEventListener('resize', place);
+    next();
+  });
+}

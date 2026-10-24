@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 import { dismissMentor } from './mentor.inc.mjs';
 const URL = 'http://localhost:8765/index.html?debug';
-const out = 'shots';
+const out = './shots';
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
 const errors = [];

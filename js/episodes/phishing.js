@@ -1,7 +1,7 @@
 // Смена 1. «Рассылка»: найди улики в сообщениях и вынеси вердикт.
 // Заблокировать сообщение можно, только показав хотя бы одну улику — так игрок учится видеть признаки, а не угадывать.
 import { MESSAGES, KNOWLEDGE } from '../data/chapter1.js';
-import { el, openPanel, termBar, num, flash, sleep, animateNumber } from '../ui.js';
+import { el, openPanel, termBar, num, flash, sleep, animateNumber, tour } from '../ui.js';
 
 const CHANNEL_ICON = { SMS: '✉', 'Мессенджер': '💬', 'Почта': '@' };
 
@@ -291,5 +291,6 @@ export function runPhishing(ctx) {
     }
 
     showMessage(0);
+    setTimeout(() => tour('phishing'), 500);
   });
 }

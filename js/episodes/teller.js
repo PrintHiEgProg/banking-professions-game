@@ -2,7 +2,7 @@
 // Ошибки не наказываются сразу: они возвращаются «через пару дней» в разборе смены.
 import { TELLER_SHIFTS, OPS, PRODUCTS, PROBLEMS, RATES, SAFE_DIALOG, GRANDSON_DIALOG } from '../data/teller.js';
 import { KNOWLEDGE } from '../data/professions.js';
-import { el, openPanel, termBar, sleep, money, num, flash, animateNumber } from '../ui.js';
+import { el, openPanel, termBar, sleep, money, num, flash, animateNumber, tour } from '../ui.js';
 import { setBeat } from '../story.js';
 import { person } from '../portraits.js';
 import { runDialog } from './dialog.js';
@@ -135,6 +135,7 @@ export function runTeller(ctx, shift) {
           grid.append(b);
         }
         work.append(grid);
+        setTimeout(() => tour('teller'), 450);
       });
     }
 
@@ -233,7 +234,7 @@ export function runTeller(ctx, shift) {
           el('div', { class: 'rs-ava', html: person(c.look, won ? 'cry' : 'worried') }),
           el('div', { class: 'rs-title' }, won ? '🛡 СПАСЕНО ОТ МОШЕННИКОВ' : '💸 УШЛО МОШЕННИКАМ'),
           big,
-          el('p', { class: 'rs-quote' }, won ? c.thanks : c.lostQuote),
+          el('p', { class: 'rs-quote' }, (won ? c.thanks : c.lostQuote).replace('{name}', ctx.state.nickname)),
           el('p', { class: 'muted small' }, won ? c.wonNote : c.lostNote),
         ),
         btn,
@@ -269,6 +270,7 @@ export function runTeller(ctx, shift) {
       const okBtn = el('button', { class: 'btn primary', disabled: true }, '✓ Провести');
       const probBtn = el('button', { class: 'btn danger' }, '⚠ Проблема');
       work.append(el('div', { class: 'form' }, slots), el('div', { class: 'row' }, probBtn, okBtn), el('p', { class: 'muted small tip' }, '👉 Выбери поле, потом нажми на нужную строку в документе'));
+      setTimeout(() => tour('teller_form'), 350);
       const coach = c.coach && c.coach[diff];
       if (coach) {
         work.append(el('div', { class: 'coach' }, coach));

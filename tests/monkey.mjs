@@ -2,17 +2,19 @@
 // node monkey.mjs <prof> [shifts=5] [diff=normal] [seed=1] [shotsPrefix]
 import { chromium } from 'playwright';
 import { dismissMentor } from './mentor.inc.mjs';
-const [prof = 'teller', shiftsArg = '5', diff = 'normal', seedArg = '1', prefix = '', startArg = '1'] = process.argv.slice(2);
+import { audit } from './audit.inc.mjs';
+const [prof = 'teller', shiftsArg = '5', diff = 'normal', seedArg = '1', prefix = '', startArg = '1', wArg = '1366', hArg = '768'] = process.argv.slice(2);
+const mobile = Number(wArg) < 900;
 const SHIFTS = Number(shiftsArg);
 let seed = Number(seedArg);
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+const page = await browser.newPage({ viewport: { width: Number(wArg), height: Number(hArg) }, hasTouch: mobile, isMobile: mobile });
 const errors = [];
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 4).join('\n')));
 page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_TUNNEL')) errors.push('console: ' + m.text()); });
 await page.goto('http://localhost:8765/index.html?debug');
-await page.evaluate(() => { localStorage.clear(); localStorage.setItem('rubezh.settings.v1', JSON.stringify({ quality: 'low', sound: false })); });
+await page.evaluate(() => { localStorage.clear(); localStorage.setItem('bank.notours', '1'); localStorage.setItem('rubezh.settings.v1', JSON.stringify({ quality: 'low', sound: false })); });
 await page.reload();
 await page.waitForFunction(() => !document.querySelector('#loading.show'), null, { timeout: 30000 });
 await page.fill('#nick', 'Тест');
@@ -36,6 +38,7 @@ while (Date.now() - t0 < 240000) {
   if (state.wrap) {
     if (state.wrap.includes('debrief')) {
       debriefs++;
+      if (process.env.AUDIT) await audit(page, `monkey ${prof} debrief${debriefs}`);
       if (prefix) await page.screenshot({ path: `shots/${prefix}-debrief${debriefs}.png` });
       const stars = await page.evaluate(() => document.querySelectorAll('.screen-card .stars .on').length);
       console.log(`debrief ${debriefs}: stars ${stars}`);
@@ -51,6 +54,7 @@ while (Date.now() - t0 < 240000) {
     if (!seenPanels.has(key)) {
       seenPanels.add(key);
       await page.waitForTimeout(700);
+      if (process.env.AUDIT) await audit(page, `monkey ${prof} ${key}`);
       if (prefix) await page.screenshot({ path: `shots/${prefix}-${seenPanels.size}-${key.replace(/[^a-z0-9]+/gi, '_')}.png` });
     }
     const did = await page.evaluate(([r1, r2, r3]) => {

@@ -2,7 +2,7 @@
 // Главная фишка — перемотка: месяцы летят, падают соблазны, подарки и беды, и жизнь проверяет план.
 import { ADVISOR_SHIFTS, PRODUCTS, STYLE_TAGS, MONTHS, SEASON, CUT_FACTOR, income, monthlyFree, forecast, amountAt } from '../data/advisor.js';
 import { KNOWLEDGE } from '../data/professions.js';
-import { el, openPanel, termBar, sleep, money, num, flash } from '../ui.js';
+import { el, openPanel, termBar, sleep, money, num, flash, tour } from '../ui.js';
 import { person } from '../portraits.js';
 import { runDialog } from './dialog.js';
 import { setBeat } from '../story.js';
@@ -343,6 +343,7 @@ export function runAdvisor(ctx, shift) {
         restRow,
       );
       work.append(el('p', { class: 'muted small tip' }, tune.hints ? '👆 Нажимай на кран: открыт → наполовину → закрыт. ✂️ — подсказка, где лишнее' : '👆 Нажимай на кран: открыт → наполовину → закрыт'), flow);
+      setTimeout(() => tour('advisor_pipes'), 500);
 
       function turn(e, row) {
         if (e.kind === 'need') {
@@ -911,7 +912,9 @@ export function runRewind(ctx, shift) {
 
     (async () => {
       render();
-      await sleep(600);
+      await sleep(300);
+      await tour('advisor_rewind');
+      await sleep(300);
       addLog('⏩', `План: ${money(Math.max(0, free))} в месяц${plan.cushion ? `, из них ${money(plan.cushion)} в подушку` : ''} · ${product.icon} ${product.title}`);
       if (cfg.flyer && plan.pyramidWon === false) addLog('🔺', '100 000 ₽ Олега ушли в «Золотой Рост»', 'bad');
       const events = [...cfg.events];

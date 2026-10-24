@@ -30,6 +30,7 @@
     </div>
   </div>
   <div id="hud-buttons" class="hidden">
+    <button id="btn-badge" class="icon-btn badge-btn" aria-label="Мой пропуск"></button>
     <button id="btn-album" class="icon-btn" aria-label="Мои знания">📒</button>
     <button id="btn-sound" class="icon-btn" aria-label="Звук">
       <svg viewBox="0 0 24 24" class="ico-on"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
@@ -43,6 +44,8 @@
   <div id="save-badge" role="status">💾 Сохранено</div>
   <div id="fade"></div>
   <div id="hover-label"></div>
+  <div id="crosshair" aria-hidden="true"></div>
+  <div id="lock-hint" aria-hidden="true">🖱 Кликни по экрану — управлять камерой мышью</div>
   <div id="caption" role="status"></div>
   <div id="controls-hint"></div>
   <div id="joystick" aria-hidden="true"><div class="knob"></div></div>
@@ -58,6 +61,11 @@
       </div>
       <p class="pitch">Зайди в банк и попробуй 5 профессий — по 5 смен в каждой.</p>
       <div id="prof-strip" class="prof-strip"></div>
+
+      <div class="field">
+        <span>Кто ты? Выбери стажёра</span>
+        <div id="avatars" class="avatars" role="radiogroup"></div>
+      </div>
 
       <label class="field">
         <span>Как тебя зовут?</span>

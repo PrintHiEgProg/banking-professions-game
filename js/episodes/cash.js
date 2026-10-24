@@ -2,7 +2,7 @@
 // Экшен строится на бдительности и правилах: заметить хвост, осмотреться, проверить пломбу, не нарушать процедуру.
 import { CASH_SHIFTS, GRID, DISTRICTS, STREET, ODD, CARS, TAIL, TAIL_DECOY, CREW, ROLES, VAULT_STEPS, VAULT_DECOY, SERVICE, HOSTS, fmt, pointsFor, legPath, legTime, schedule, sameAsYesterday } from '../data/cash.js';
 import { KNOWLEDGE } from '../data/professions.js';
-import { el, openPanel, termBar, sleep, flash } from '../ui.js';
+import { el, openPanel, termBar, sleep, flash, tour } from '../ui.js';
 import { person } from '../portraits.js';
 import { story, setBeat, bakeryLine } from '../story.js';
 
@@ -175,6 +175,7 @@ export function runPlan(ctx, shift) {
     );
     const mapBox = el('div', { class: 'ck-map' }, el('p', { class: 'muted small tip' }, '👆 Нажимай на точки по порядку объезда. Нажми на точку в маршруте ещё раз — уберёшь её и следующие'), map.wrap);
     panel.append(el('div', { class: 'ck-grid' }, mapBox, side));
+    setTimeout(() => tour('cash_plan'), 500);
 
     for (const p of pts) {
       map.pts[p.id].addEventListener('click', () => {
@@ -766,7 +767,9 @@ export function runDrive(ctx, shift) {
     (async () => {
       map.vanAt(X(cfg.depot.x), Y(cfg.depot.y));
       updateMirror();
-      await sleep(500);
+      await sleep(400);
+      await tour('cash_drive');
+      await sleep(200);
       if (cfg.crew) await crewSetup();
       if (cfg.snow) addLog('❄️', 'Снегопад: едем медленнее');
       let at = cfg.depot;

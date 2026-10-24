@@ -2,7 +2,7 @@
 // Результат решения виден не сразу — только «месяц спустя» на календаре.
 import { CREDIT_SHIFTS, TERMS, payment } from '../data/credit.js';
 import { KNOWLEDGE } from '../data/professions.js';
-import { el, openPanel, termBar, sleep, money, flash, animateNumber } from '../ui.js';
+import { el, openPanel, termBar, sleep, money, flash, animateNumber, tour } from '../ui.js';
 import { setBeat } from '../story.js';
 import { person } from '../portraits.js';
 import { runDialog } from './dialog.js';
@@ -260,6 +260,7 @@ export function runCredit(ctx, shift) {
           right.append(el('div', { class: 'decide' }, ok, no));
         }
         renderCalc();
+        setTimeout(() => tour('credit'), 450);
 
         async function talk() {
           audio.click();
@@ -291,7 +292,7 @@ export function runCredit(ctx, shift) {
               el('div', { class: 'rs-ava', html: person(c.look, won ? 'cry' : 'worried') }),
               el('div', { class: 'rs-title' }, won ? '🛡 ЧУЖОЙ ДОЛГ НЕ ПОВИС НА МАКСИМЕ' : '😔 МАКСИМ НЕ ПОВЕРИЛ'),
               big,
-              el('p', { class: 'rs-quote' }, won ? c.rescue.won : c.rescue.lost),
+              el('p', { class: 'rs-quote' }, (won ? c.rescue.won : c.rescue.lost).replace('{name}', ctx.state.nickname)),
               el('p', { class: 'muted small' }, won ? c.rescue.wonNote : c.rescue.lostNote),
             ),
             btn,

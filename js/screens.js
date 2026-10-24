@@ -3,8 +3,8 @@ import { BRIEF, FINALE } from './data/chapter1.js';
 import { PROFESSIONS, KNOWLEDGE, KNOWLEDGE_GROUPS, knowledgeOf, RANK_NAMES } from './data/professions.js';
 import { audio } from './audio.js';
 import { el, sleep, openPanel, closePanel, typeText, skipTyping, starsEl, knowledgeCard, num, VOICE } from './ui.js';
-import { portrait } from './portraits.js';
-import { MENTOR, weekSummary } from './story.js';
+import { portrait, avatarSvg, person } from './portraits.js';
+import { MENTOR, weekSummary, thanksNotes } from './story.js';
 
 function overlay(cls) {
   const box = el('div', { class: `screen-card ${cls}` });
@@ -167,7 +167,7 @@ export function shiftIntro(prof, shift) {
   });
 }
 
-export function debrief(prof, shift, res, ps, isLast, plot = []) {
+export function debrief(prof, shift, res, ps, isLast, plot = [], promo = null) {
   return new Promise((resolve) => {
     const { box, close } = overlay('debrief');
     box.style.setProperty('--pc', prof.color);
@@ -186,6 +186,7 @@ export function debrief(prof, shift, res, ps, isLast, plot = []) {
       el('div', { class: 'db-stats' }, (res.stats || []).map(([i, v, l]) => el('div', {}, el('span', { class: 'db-ico' }, i), el('b', {}, v), el('small', {}, l)))),
       cons.length ? el('h4', {}, res.consequencesTitle || 'Через пару дней…') : null,
       cons.length ? el('div', { class: 'cons-list' }, cons.map((c) => el('div', { class: `cons ${c.kind || ''}` }, el('span', {}, c.icon), el('p', {}, c.text)))) : null,
+      promo ? el('div', { class: 'promo' }, el('b', {}, `🎉 Повышение: ${promo.rank}!`), el('small', {}, 'Звёзды за смены складываются в звание. Твой пропуск обновлён'), badgeEl(promo.progress)) : null,
       plot.length ? el('h4', {}, '🧵 Сюжет недели') : null,
       plot.length ? el('div', { class: 'cons-list' }, plot.map(([i, t]) => el('div', { class: 'cons story' }, el('span', {}, i), el('p', {}, t)))) : null,
       learned.length ? el('h4', {}, 'Новые знания') : null,
@@ -280,7 +281,7 @@ export function album(progress) {
 }
 
 // Разговор с наставником в холле: приветствие, новости отделения, совет
-export function mentorTalk(progress, { lines = [], news = [], tip = null, btn = 'Понятно', emo = 'happy' } = {}) {
+export function mentorTalk(progress, { lines = [], news = [], tip = null, btn = 'Понятно', emo = 'happy', extra = null } = {}) {
   return new Promise((resolve) => {
     const panel = openPanel('brief mentor');
     const body = el('div', { class: 'brief-lines' });
@@ -306,6 +307,7 @@ export function mentorTalk(progress, { lines = [], news = [], tip = null, btn = 
       }
       if (news.length) body.append(el('h4', {}, '📰 Новости отделения'), el('div', { class: 'cons-list' }, news.map((t) => el('div', { class: 'cons story' }, el('span', {}, '🧵'), el('p', {}, t)))));
       if (tip) body.append(el('div', { class: 'mentor-tip' }, tip));
+      if (extra) body.append(extra);
       panel.querySelector('.brief-ava').classList.remove('speaking');
       button.classList.remove('hidden');
       button.focus({ preventScroll: true });
@@ -315,6 +317,57 @@ export function mentorTalk(progress, { lines = [], news = [], tip = null, btn = 
       closePanel();
       resolve();
     });
+  });
+}
+
+// Звание стажёра растёт вместе со звёздами
+export function staffRank(progress) {
+  const stars = PROFESSIONS.reduce((s, p) => s + profStars(progress.profs[p.id]), 0);
+  const r = [[65, 'Эксперт банка'], [50, 'Ведущий специалист'], [30, 'Специалист'], [10, 'Младший специалист'], [0, 'Стажёр']].find(([m]) => stars >= m)[1];
+  return { stars, rank: r };
+}
+
+// Пропуск сотрудника: аватар, имя, звание
+export function badgeEl(progress) {
+  const { stars, rank } = staffRank(progress);
+  const done = PROFESSIONS.reduce((s, p) => s + profDone(progress.profs[p.id]), 0);
+  return el(
+    'div',
+    { class: 'staff-badge' },
+    el('div', { class: 'sb-top' }, el('span', {}, '🏦 БАНК · ОТДЕЛЕНИЕ №1'), el('span', {}, 'ПРОПУСК')),
+    el('div', { class: 'sb-body' }, el('div', { class: 'sb-photo', html: avatarSvg(progress.avatar || 0) }), el('div', {}, el('small', {}, 'сотрудник'), el('b', {}, progress.nickname), el('span', { class: 'sb-rank' }, rank), el('small', {}, `★ ${stars}/75 · смен ${done}/25`))),
+    el('div', { class: 'sb-strip' }, PROFESSIONS.map((p) => el('span', { class: profDone(progress.profs[p.id]) ? 'on' : '', style: { '--pc': p.color }, title: p.title }, p.icon))),
+  );
+}
+
+export function badgeCard(progress) {
+  return new Promise((resolve) => {
+    const { box, close } = overlay('badge-card');
+    const notes = thanksNotes(progress);
+    box.append(
+      el('div', { class: 'si-top' }, '🪪 МОЙ ПРОПУСК'),
+      badgeEl(progress),
+      el('p', { class: 'muted small' }, notes.length ? `💌 Благодарностей от клиентов: ${notes.length}. Они висят на стене в холле.` : '💌 Помоги клиентам — и они напишут тебе на стену благодарностей в холле.'),
+      el('button', { class: 'btn primary', onClick: () => { audio.click(); close(); resolve(); } }, 'Закрыть'),
+    );
+    audio.notify();
+  });
+}
+
+// Стена благодарностей в холле
+export function thanksBoard(progress) {
+  return new Promise((resolve) => {
+    const { box, close } = overlay('thanks-card');
+    const notes = thanksNotes(progress);
+    box.append(
+      el('div', { class: 'si-top' }, '💌 СТЕНА БЛАГОДАРНОСТЕЙ'),
+      el('h2', {}, notes.length ? `Тебе написали: ${notes.length}` : 'Пока пусто'),
+      notes.length
+        ? el('div', { class: 'notes-grid' }, notes.map((n, i) => el('div', { class: `note-card c${i % 5}` }, el('span', { class: 'nc-ico', html: n.look ? portrait(n.look, 'happy') : '' }, n.look ? '' : n.icon), el('p', {}, n.text), el('small', {}, `— ${n.from}`))))
+        : el('p', { class: 'muted' }, 'Помоги клиентам в кабинетах — и они напишут сюда. Каждая записка — это человек, которому ты правда помог.'),
+      el('button', { class: 'btn primary', onClick: () => { audio.click(); close(); resolve(); } }, 'Закрыть'),
+    );
+    audio.notify();
   });
 }
 

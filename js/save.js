@@ -27,6 +27,7 @@ export function newProgress(nickname, difficulty) {
     certificate: false,
     // сквозной сюжет недели: исходы историй, которые переходят между кабинетами (см. js/story.js)
     story: {},
+    avatar: 0,
     savedAt: 0,
   };
 }

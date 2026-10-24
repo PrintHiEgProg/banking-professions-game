@@ -39,6 +39,7 @@ export function runDialog(container, ctx, { name, look, script, intro = null }) 
     const scroll = () => (lines.scrollTop = lines.scrollHeight);
 
     async function say(text, emo) {
+      text = text.replace('{name}', ctx.state.nickname);
       if (emo) ava.innerHTML = person(look, emo);
       const p = el('p');
       lines.append(el('div', { class: 'line gran' }, p));

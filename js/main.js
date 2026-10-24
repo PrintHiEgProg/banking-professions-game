@@ -5,8 +5,10 @@ import { audio } from './audio.js';
 import { DIFFICULTY } from './data/config.js';
 import { PROFESSIONS, PROF, KNOWLEDGE } from './data/professions.js';
 import { loadSave, writeSave, clearSave, loadSettings, saveSettings, newProgress } from './save.js';
-import { $, el, sleep, toast, caption, setObjective, closePanel, typeText, skipTyping, flash, showSaved, num } from './ui.js';
-import { shiftIntro, debrief, professionSummary, certificate, album, professionCard, kioskMenu, cabinetCard, briefingCall, mashaChat, confirmBox, profStars, profDone, mentorTalk } from './screens.js';
+import { $, el, sleep, toast, caption, setObjective, closePanel, typeText, skipTyping, flash, showSaved, num, isTourActive } from './ui.js';
+import './tours.js';
+import { shiftIntro, debrief, professionSummary, certificate, album, professionCard, kioskMenu, cabinetCard, briefingCall, mashaChat, confirmBox, profStars, profDone, mentorTalk, badgeEl, badgeCard, thanksBoard, staffRank } from './screens.js';
+import { AVATARS, avatarSvg } from './portraits.js';
 import { story, setBeat, takeNews, recentNews, teaser, WELCOME, MENTOR } from './story.js';
 import { buildLobby } from './rooms/lobby.js';
 import { runPhishing } from './episodes/phishing.js';
@@ -15,7 +17,7 @@ import { runRules } from './episodes/rules.js';
 import { runCall } from './episodes/call.js';
 import { runTrace } from './episodes/trace.js';
 
-const settings = { sound: true, quality: null, nickname: '', difficulty: 'normal', jury: false, ...loadSettings() };
+const settings = { sound: true, quality: null, nickname: '', difficulty: 'normal', jury: false, avatar: 0, ...loadSettings() };
 const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (!settings.quality) settings.quality = isTouch || Math.min(window.innerWidth, window.innerHeight) < 600 ? 'low' : 'high';
 
@@ -56,7 +58,7 @@ const ctx = {
   prof: null,
   profession: null,
   shift: null,
-  isPaused: () => paused,
+  isPaused: () => paused || isTourActive(),
   focus: (name) => {
     const f = world.focusPose(name);
     return f ? controls.flyTo(f.pos, f.look, 1.0) : Promise.resolve();
@@ -113,7 +115,8 @@ async function boot() {
   ctx.world = world;
   world.registerRoom('lobby', buildLobby);
   world.setRoom('lobby');
-  controls = new Controls(world, $('#scene'), { onHover, onClick: interact, onMiss });
+  controls = new Controls(world, $('#scene'), { onHover, onClick: interact, onMiss, onLock });
+  document.body.classList.toggle('can-lock', controls.lockAvailable);
   document.body.classList.toggle('touch', isTouch);
   audio.setMuted(!settings.sound);
   world.setSky('night');
@@ -127,6 +130,7 @@ async function boot() {
     if (mode === 'title') attract(dt);
     world.throttle = overlayRoot.classList.contains('active') || !!document.querySelector('.screen-wrap.show');
     controls.update(dt);
+    tickTutorial();
     if (world.room === 'security' && currentProf?.id === 'security' && progress?.profs.security.shift === 1 && target && !paused) world.state.threat += dt * 2.4;
     world.update(dt);
     updateTargetArrow();
@@ -141,7 +145,7 @@ async function boot() {
   $('#loading').classList.remove('show');
 
   if (new URLSearchParams(location.search).has('debug')) {
-    window.__bank = { get progress() { return progress; }, get mode() { return mode; }, get target() { return target; }, world, controls, ctx, enterRoomById: (id) => enterRoom(PROF[id]), hit: () => targetHit && targetHit() };
+    window.__bank = { get progress() { return progress; }, get mode() { return mode; }, get target() { return target; }, world, controls, ctx, enterRoomById: (id) => enterRoom(PROF[id]), hit: () => targetHit && targetHit(), interact: (item) => interact({ label: '', ...item }) };
   }
 }
 
@@ -174,6 +178,27 @@ function setupTitle() {
   );
   renderDiff();
 
+  // Выбор стажёра: лицо, с которым игрок проходит неделю
+  let avatar = saved?.avatar ?? settings.avatar ?? 0;
+  const avBox = $('#avatars');
+  avBox.innerHTML = '';
+  const avBtns = AVATARS.map((_, i) => {
+    const b = el('button', { class: 'av-btn', role: 'radio', 'aria-label': `Стажёр ${i + 1}`, html: avatarSvg(i) });
+    b.addEventListener('click', () => {
+      audio.init();
+      audio.click();
+      avatar = i;
+      settings.avatar = i;
+      avBtns.forEach((x, k) => {
+        x.classList.toggle('on', k === i);
+        x.setAttribute('aria-checked', String(k === i));
+      });
+    });
+    avBox.append(b);
+    return b;
+  });
+  avBtns.forEach((x, k) => x.classList.toggle('on', k === avatar));
+
   // Полоска профессий с прогрессом
   const strip = $('#prof-strip');
   strip.innerHTML = '';
@@ -186,9 +211,10 @@ function setupTitle() {
   const fresh = () => {
     settings.nickname = readName();
     settings.difficulty = diff;
+    settings.avatar = avatar;
     saveSettings(settings);
     clearSave();
-    return newProgress(settings.nickname, diff);
+    return { ...newProgress(settings.nickname, diff), avatar };
   };
 
   const cont = $('#btn-continue');
@@ -269,6 +295,14 @@ function setupMenus() {
     setPaused(false);
   };
   $('#btn-album').addEventListener('click', openAlbum);
+  $('#btn-badge').addEventListener('click', async () => {
+    if (!progress) return;
+    const wasPaused = paused;
+    $('#pause').classList.add('hidden');
+    if (!wasPaused) setPaused(true, false);
+    await badgeCard(progress);
+    setPaused(false);
+  });
   $('#p-album').addEventListener('click', openAlbum);
 
   $('#btn-pause').addEventListener('click', () => setPaused(true));
@@ -306,8 +340,10 @@ function setPaused(p, showMenu = true) {
     const where = currentProf ? `${currentProf.title}, смена ${progress.profs[currentProf.id].shift}` : 'холл банка';
     $('#p-saved').textContent = `💾 Сохранено в ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} · ${where}`;
   }
-  if (p) controls.setEnabled(false);
-  else if (!busy) controls.setEnabled(true);
+  if (p) {
+    controls.releaseMouse();
+    controls.setEnabled(false);
+  } else if (!busy) controls.setEnabled(true);
   if (p) audio.heartbeat(0);
 }
 
@@ -322,6 +358,8 @@ async function begin(p, withIntro) {
   if (withIntro) await playIntro();
   $('#hud').classList.remove('hidden');
   $('#hud-buttons').classList.remove('hidden');
+  if (progress.avatar == null) progress.avatar = settings.avatar || 0;
+  $('#btn-badge').innerHTML = avatarSvg(progress.avatar);
   audio.startAmbient();
   audio.setRain(0);
   refreshHud();
@@ -333,7 +371,7 @@ async function begin(p, withIntro) {
 
 function showControlsHint() {
   const hint = $('#controls-hint');
-  hint.textContent = isTouch ? 'Веди пальцем — осмотреться · Джойстик — ходить · Тап по двери — войти' : 'Зажми мышь — осмотреться · WASD — ходить · Клик по двери — войти';
+  hint.textContent = isTouch ? 'Веди пальцем — осмотреться · Джойстик — ходить · Тап по двери — войти' : controls.lockAvailable ? 'Кликни — камера за мышью · WASD — ходить · Shift — бег · E — действие · Esc — отпустить мышь' : 'Зажми мышь — осмотреться · WASD — ходить · Клик по двери — войти';
   hint.classList.add('show');
   setTimeout(() => hint.classList.remove('show'), 8000);
 }
@@ -402,6 +440,7 @@ async function enterLobby() {
     controls.dropFocus();
     controls.setPose(room.spawn.pos, room.spawn.yaw, -0.05);
     for (const p of PROFESSIONS) room.setProgress(p.id, profStars(progress.profs[p.id]), profDone(progress.profs[p.id]));
+    room.setStory?.(progress);
     audio.alarm(false);
     audio.ring(false);
     audio.heartbeat(0);
@@ -423,12 +462,13 @@ async function enterLobby() {
     world.setMarker(null);
     await sleep(350);
     if (mode === 'lobby') await ctx.focus('mentor');
-    if (mode === 'lobby') await mentorTalk(progress, { lines: WELCOME, btn: '🚪 Пойду выбирать кабинет' });
+    if (mode === 'lobby') await mentorTalk(progress, { lines: WELCOME, btn: '🚪 Пойду выбирать кабинет', extra: el('div', { class: 'welcome-badge' }, el('h4', {}, '🪪 Держи пропуск стажёра'), badgeEl(progress)) });
     if (mode === 'lobby') {
       await controls.returnFromFocus();
       world.setMarker('kiosk');
       busy = false;
       if (!paused) controls.setEnabled(true);
+      startTutorial();
     }
   } else {
     const fresh = takeNews(progress, 2);
@@ -449,6 +489,64 @@ async function enterLobby() {
   }
 }
 
+// ─────────────────────────── обучение управлению в холле ───────────────────────────
+// Учим делом: три шага отмечаются сами, когда игрок их выполняет.
+let tut = null;
+function startTutorial() {
+  const st = story(progress);
+  if (st.tut || tut) return;
+  const lock = controls.lockAvailable;
+  const steps = [
+    ['look', isTouch ? '👆 Веди пальцем по экрану — осмотрись' : lock ? '🖱 Кликни по экрану и поводи мышью — осмотрись' : '🖱 Зажми мышь и поведи — осмотрись'],
+    ['walk', isTouch ? '🕹 Джойстик слева внизу — пройдись' : '⌨️ Пройдись: W A S D · Shift — бег'],
+    ['use', isTouch ? '🎫 Нажми на терминал очереди или на дверь' : '🎫 Наведи прицел на терминал или дверь и нажми E'],
+  ];
+  const rows = steps.map(([id, t]) => el('li', { 'data-id': id }, el('i'), el('span', {}, t)));
+  const box = el('div', { id: 'tut', role: 'status' }, el('b', {}, '🎓 Обучение'), el('ol', {}, rows));
+  document.body.append(box);
+  document.body.classList.add('has-tut');
+  // на узком экране — сразу под карточкой задачи, какой бы высоты она ни была
+  const placeTut = () => {
+    if (!box.isConnected) return window.removeEventListener('resize', placeTut);
+    const narrow = window.innerWidth <= 600 && window.innerHeight > 520;
+    box.style.top = narrow ? `${Math.round($('#objective').getBoundingClientRect().bottom + 10)}px` : '';
+  };
+  placeTut();
+  setTimeout(placeTut, 400);
+  window.addEventListener('resize', placeTut);
+  requestAnimationFrame(() => box.classList.add('show'));
+  tut = { box, done: new Set(), yaw: controls.yaw, turn: 0, pos: world.camera.position.clone(), walk: 0 };
+}
+function tutorialDone(id) {
+  if (!tut || tut.done.has(id)) return;
+  tut.done.add(id);
+  tut.box.querySelector(`li[data-id="${id}"]`)?.classList.add('done');
+  audio.coin();
+  if (tut.done.size === 3) {
+    const box = tut.box;
+    tut = null;
+    document.body.classList.remove('has-tut');
+    story(progress).tut = true;
+    save();
+    setTimeout(() => {
+      box.classList.remove('show');
+      setTimeout(() => box.remove(), 400);
+      toast({ who: 'mentor', emo: 'happy', title: MENTOR.name, text: 'Отлично! Управление освоено. Теперь выбирай кабинет — в первой смене каждой профессии самое интересное 🚪' });
+    }, 900);
+  }
+}
+function tickTutorial() {
+  if (!tut || mode !== 'lobby' || !controls.enabled) return;
+  const d = Math.abs(controls.yaw - tut.yaw);
+  tut.yaw = controls.yaw;
+  if (d < 1) tut.turn += d;
+  if (tut.turn > 0.9) tutorialDone('look');
+  const p = world.camera.position;
+  tut.walk += Math.hypot(p.x - tut.pos.x, p.z - tut.pos.z);
+  tut.pos.copy(p);
+  if (tut.walk > 2.2) tutorialDone('walk');
+}
+
 function mentorChat() {
   const done = PROFESSIONS.reduce((s, p) => s + profDone(progress.profs[p.id]), 0);
   const fresh = takeNews(progress, 3);
@@ -461,6 +559,7 @@ function mentorChat() {
 }
 
 async function lobbyInteract(item) {
+  tutorialDone('use');
   if (item.id === 'mentor') {
     busy = true;
     controls.setEnabled(false);
@@ -486,7 +585,21 @@ async function lobbyInteract(item) {
     world.setMarker('kiosk');
     return;
   }
-  if (item.id.startsWith('door_')) openDoor(PROF[item.id.slice(5)]);
+  if (item.id.startsWith('door_')) return openDoor(PROF[item.id.slice(5)]);
+  if (item.id === 'thanks') {
+    busy = true;
+    controls.setEnabled(false);
+    world.setMarker(null);
+    await ctx.focus('thanks');
+    await thanksBoard(progress);
+    await controls.returnFromFocus();
+    busy = false;
+    controls.setEnabled(true);
+    world.setMarker('kiosk');
+    return;
+  }
+  const cap = world.rooms.lobby?.captions?.[item.id];
+  if (cap) caption(typeof cap === 'function' ? cap() : cap, 5200);
 }
 
 async function openDoor(prof, fromKiosk = false) {
@@ -510,6 +623,11 @@ async function openDoor(prof, fromKiosk = false) {
 // ─────────────────────────── кабинет профессии ───────────────────────────
 async function enterRoom(prof) {
   if ($('#overlay-root').classList.contains('active')) closePanel();
+  if (tut) {
+    tut.box.remove();
+    tut = null;
+    document.body.classList.remove('has-tut');
+  }
   mode = 'room';
   currentProf = prof;
   ctx.profession = prof;
@@ -626,6 +744,7 @@ async function playShift(prof, n) {
     if (step.run !== 'dawn') await controls.returnFromFocus();
   }
 
+  const rankBefore = staffRank(progress).rank;
   const res = ps.pending || { stars: 1, stats: [] };
   const stars = res.stars || 1;
   const prev = ps.best[n];
@@ -640,7 +759,10 @@ async function playShift(prof, n) {
   refreshHud();
   setObjective(null);
   world.setMarker(null);
-  const choice = await debrief(prof, shift, res, ps, last, teaser(prof.id, n, progress));
+  const rankAfter = staffRank(progress).rank;
+  const promo = rankAfter !== rankBefore ? { rank: rankAfter, progress } : null;
+  if (promo) $('#btn-badge').classList.add('bump');
+  const choice = await debrief(prof, shift, res, ps, last, teaser(prof.id, n, progress), promo);
   if (last && choice === 'next') {
     const allDone = PROFESSIONS.every((p) => profDone(progress.profs[p.id]) === 5);
     const r = await professionSummary(prof, ps, ctx.diff, allDone && !progress.certificate);
@@ -805,18 +927,39 @@ async function runStep(prof, shift, step) {
 // ─────────────────────────── взаимодействие ───────────────────────────
 function onHover(item, mouse) {
   const label = $('#hover-label');
+  document.body.classList.toggle('aim', !!item && !item.far);
   if (!item || mode === 'title') {
     label.classList.remove('show');
     document.body.style.cursor = '';
     return;
   }
   const isTarget = target === item.id || (mode === 'lobby' && (item.id === 'kiosk' || item.id === 'mentor' || item.id.startsWith('door_')));
-  label.textContent = isTarget ? `${item.label} · нажми` : item.label;
-  label.classList.toggle('target', isTarget);
-  label.style.left = `${mouse.x + 16}px`;
-  label.style.top = `${mouse.y + 18}px`;
+  const key = mouse.center ? 'E' : isTouch ? 'тап' : 'клик';
+  label.textContent = item.far ? `${item.label} · 🚶 подойди ближе` : isTarget ? `${item.label} · ${key}` : `${item.label} · ${key} — рассмотреть`;
+  label.classList.toggle('target', isTarget && !item.far);
+  label.classList.toggle('far', !!item.far);
+  label.classList.toggle('center', !!mouse.center);
+  if (mouse.center) {
+    label.style.left = '50%';
+    label.style.top = `calc(50% + 26px)`;
+  } else {
+    label.style.left = `${Math.min(mouse.x + 16, window.innerWidth - 220)}px`;
+    label.style.top = `${mouse.y + 18}px`;
+  }
   label.classList.add('show');
-  document.body.style.cursor = 'pointer';
+  if (!mouse.center) {
+    const w = label.offsetWidth;
+    const h = label.offsetHeight;
+    label.style.left = `${Math.max(8, Math.min(mouse.x + 16, window.innerWidth - w - 8))}px`;
+    label.style.top = `${Math.max(8, Math.min(mouse.y + 18, window.innerHeight - h - 8))}px`;
+  }
+  document.body.style.cursor = mouse.center ? '' : 'pointer';
+}
+
+// Мышь захвачена или отпущена: подсказка «кликни, чтобы осмотреться»
+function onLock(locked) {
+  document.body.classList.toggle('locked', locked);
+  if (locked) $('#controls-hint').classList.remove('show');
 }
 
 function interact(item) {

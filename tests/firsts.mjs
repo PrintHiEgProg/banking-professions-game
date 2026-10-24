@@ -2,20 +2,22 @@
 // node firsts.mjs [diff=normal] [mode=good|bad]
 import { chromium } from 'playwright';
 import { dismissMentor } from './mentor.inc.mjs';
-const [diff = 'normal', mode = 'good'] = process.argv.slice(2);
+import { audit } from './audit.inc.mjs';
+const [diff = 'normal', mode = 'good', wArg = '1366', hArg = '768'] = process.argv.slice(2);
+const mobile = Number(wArg) < 900;
 const good = mode === 'good';
-const tag = `first-${diff}-${mode}`;
+const tag = `first-${diff}-${mode}${wArg !== '1366' ? `-${wArg}x${hArg}` : ''}`;
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+const page = await browser.newPage({ viewport: { width: Number(wArg), height: Number(hArg) }, hasTouch: mobile, isMobile: mobile });
 const errors = [];
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 3).join('\n')));
 page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_TUNNEL')) errors.push('console: ' + m.text()); });
-const shot = (name) => page.screenshot({ path: `shots/${tag}-${name}.png` });
+const shot = async (name) => { if (process.env.AUDIT) await audit(page, `${tag} ${name}`); await page.screenshot({ path: `shots/${tag}-${name}.png` }); };
 const wait = (ms) => page.waitForTimeout(ms);
 const ev = (fn, arg) => page.evaluate(fn, arg);
 
 await page.goto('http://localhost:8765/index.html?debug');
-await ev(() => { localStorage.clear(); localStorage.setItem('rubezh.settings.v1', JSON.stringify({ quality: 'low', sound: false })); });
+await ev(() => { localStorage.clear(); localStorage.setItem('bank.notours', '1'); localStorage.setItem('rubezh.settings.v1', JSON.stringify({ quality: 'low', sound: false })); });
 await page.reload();
 await page.waitForFunction(() => !document.querySelector('#loading.show'), null, { timeout: 30000 });
 await page.fill('#nick', 'Тест');

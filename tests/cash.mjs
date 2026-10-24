@@ -1,11 +1,12 @@
 // Умный игрок за инкассатора: node cash.mjs <shift> [diff] [mode=good|bad] [shots=1] [w] [h]
 import { chromium } from 'playwright';
 import { dismissMentor } from './mentor.inc.mjs';
+import { audit } from './audit.inc.mjs';
 const [shiftArg = '1', diff = 'normal', mode = 'good', shotsArg = '1', wArg = '1366', hArg = '768'] = process.argv.slice(2);
 const N = Number(shiftArg);
 const shots = shotsArg === '1';
 const mobile = wArg !== '1366';
-const tag = `cash${N}-${diff}-${mode}${mobile ? '-m' : ''}`;
+const tag = `cash${N}-${diff}-${mode}${mobile ? `-${wArg}x${hArg}` : ''}`;
 const ORDERS = {
   1: { easy: ['bakery', 'romashka', 'family'], normal: ['bakery', 'romashka', 'pharmacy', 'family'] },
   2: { easy: ['mall', 'romashka', 'gas'], normal: ['romashka', 'mall', 'gas', 'pizza'] },
@@ -19,9 +20,9 @@ const page = await browser.newPage({ viewport: { width: Number(wArg), height: Nu
 const errors = [];
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 3).join('\n')));
 page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_TUNNEL')) errors.push('console: ' + m.text()); });
-const shot = async (name) => { if (shots) await page.screenshot({ path: `shots/${tag}-${name}.png` }); };
+const shot = async (name) => { if (process.env.AUDIT) await audit(page, `${tag} ${name}`); if (shots) await page.screenshot({ path: `shots/${tag}-${name}.png` }); };
 await page.goto('http://localhost:8765/index.html?debug');
-await page.evaluate(() => { localStorage.clear(); localStorage.setItem('rubezh.settings.v1', JSON.stringify({ quality: 'low', sound: false })); });
+await page.evaluate(() => { localStorage.clear(); localStorage.setItem('bank.notours', '1'); localStorage.setItem('rubezh.settings.v1', JSON.stringify({ quality: 'low', sound: false })); });
 await page.reload();
 await page.waitForFunction(() => !document.querySelector('#loading.show'), null, { timeout: 30000 });
 await page.fill('#nick', 'Тест');

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createKit, makeRoom, roundRect, text, SANS } from './kit.js';
 import { PROFESSIONS } from '../data/professions.js';
+import { thanksNotes, lobbyGuests } from '../story.js';
 
 // Где стоит дверь каждой профессии: [x, z, поворот]
 const DOORS = {
@@ -202,30 +203,248 @@ export function buildLobby(world) {
   };
   drawBoard();
 
-  // Банкоматы и табло курсов
-  for (const x of [-4.6, 4.6]) {
-    const atm = new THREE.Group();
-    k.box(0.9, 1.9, 0.6, k.M(0x2b3440, { metalness: 0.4, roughness: 0.5 }), 0, 0.95, 0, atm);
-    k.sign(0.6, 0.4, 256, 170, (ctx, w, h) => {
+  // ─────────── Отделение банка: операционный зал, консультации, банкоматы, охрана ───────────
+  const show = (obj, on) => {
+    obj.visible = on;
+    obj.traverse((o) => (on ? o.layers.enable(0) : o.layers.disable(0)));
+  };
+  const glass = new THREE.MeshStandardMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1 });
+  const counterM = k.M(0xf2efe8, { roughness: 0.5 });
+  const darkM = k.M(0x2b2f36, { roughness: 0.5 });
+  const greenM = k.M(0x1f7a4d, { roughness: 0.45 });
+  const screenM = k.M(0x10151c, { roughness: 0.4 });
+  room.captions = {};
+
+  // Операционный зал: три окна операционистов за стеклом
+  const tellerZone = new THREE.Group();
+  k.box(6.9, 1.05, 0.75, counterM, 0, 0.525, 0, tellerZone);
+  k.box(6.9, 0.08, 0.85, greenM, 0, 1.09, 0.02, tellerZone);
+  for (const [i, x] of [-2.3, 0, 2.3].entries()) {
+    k.plane(2.0, 1.15, glass, x, 1.7, 0.2, 0, tellerZone);
+    k.box(0.06, 1.2, 0.06, darkM, x - 1.08, 1.7, 0.2, tellerZone);
+    k.sign(0.5, 0.32, 160, 100, (ctx, w, h) => {
       ctx.fillStyle = '#1f7a4d';
       ctx.fillRect(0, 0, w, h);
-      text(ctx, 'БАНКОМАТ', w / 2, h / 2, { size: 34, align: 'center' });
-    }, 0, 1.45, 0.31, 0, atm);
-    k.box(0.5, 0.05, 0.1, k.glow(0x3ddc84, 1), 0, 1.05, 0.31, atm);
-    atm.position.set(x, 0, -7.65);
+      text(ctx, `Окно ${i + 1}`, w / 2, h / 2, { size: 40, align: 'center' });
+    }, x, 2.42, 0.22, 0, tellerZone);
+    k.box(0.5, 0.34, 0.05, screenM, x - 0.35, 1.32, -0.25, tellerZone);
+    k.person({ shirt: [0x1f5a3d, 0x2a6f8f, 0x6b3f5e][i], hair: [0x2b1d1a, 0xb5651d, 0x1d1d1d][i], sit: true }, x, -0.75, 0, tellerZone);
+  }
+  k.box(0.06, 1.2, 0.06, darkM, 3.38, 1.7, 0.2, tellerZone);
+  tellerZone.position.set(-5.0, 0, -6.7);
+  scene.add(tellerZone);
+  k.reg('tellers', tellerZone, 'Операционный зал');
+  room.captions.tellers = 'Операционный зал. Здесь платят, переводят и снимают деньги. Хочешь за стекло? Дверь «Операционист» слева 🧾';
+  // клиенты у окон
+  const atWindows = [k.person({ shirt: 0xe76f51, hair: 0x3b2a20 }, -7.3, -5.65, Math.PI), k.person({ shirt: 0x577590, hair: 0xc9ccd3 }, -2.7, -5.65, Math.PI)];
+  // табло электронной очереди над окнами
+  const queueBoard = k.sign(3.4, 0.6, 900, 160, () => {}, -5.0, 3.15, -7.95);
+  const drawQueue = (n) => queueBoard.userData.canvas.redraw((ctx, w, h) => {
+    ctx.fillStyle = '#0b1a14';
+    ctx.fillRect(0, 0, w, h);
+    text(ctx, 'ТАЛОН → ОКНО', 40, 50, { size: 36, color: '#7dffc0' });
+    text(ctx, `А-0${15 + n}  →  ${1 + (n % 3)}`, 40, 115, { size: 56, color: '#ffffff' });
+    text(ctx, `Б-0${30 + n}  →  ${1 + ((n + 1) % 3)}`, 500, 115, { size: 40, color: '#8fb3a4' });
+  });
+  drawQueue(0);
+
+  // Зона консультаций: два стола со стеклянной перегородкой
+  const deskZone = new THREE.Group();
+  for (const [i, x] of [-1.6, 1.6].entries()) {
+    k.box(2.0, 0.08, 0.9, k.M(0xc8a27a, { roughness: 0.6 }), x, 0.76, 0, deskZone);
+    k.box(1.9, 0.72, 0.06, k.M(0xb08a62), x, 0.38, -0.4, deskZone);
+    k.box(0.6, 0.38, 0.05, screenM, x, 1.0, -0.25, deskZone);
+    k.sign(0.6, 0.18, 240, 72, (ctx, w, h) => {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      text(ctx, ['Вклады', 'Кредиты'][i], w / 2, h / 2, { size: 34, align: 'center', color: '#1f7a4d' });
+    }, x, 0.92, 0.36, 0, deskZone);
+    k.person({ shirt: [0x1f5a3d, 0x264653][i], hair: [0x6b3e26, 0x1d1d1d][i], sit: true }, x, -0.85, 0, deskZone);
+    k.box(0.5, 0.45, 0.5, k.M(0x2f6f9a, { roughness: 0.9 }), x, 0.22, 0.85, deskZone);
+  }
+  k.plane(0.05, 1.2, glass, 0, 1.2, 0, Math.PI / 2, deskZone);
+  deskZone.position.set(5.2, 0, -6.4);
+  scene.add(deskZone);
+  k.reg('desks', deskZone, 'Консультации');
+  room.captions.desks = 'Столы консультантов: вклады и кредиты. Похоже на кабинеты «Кредитный эксперт» и «Финансовый консультант» справа 📝📈';
+  k.sign(3.6, 0.5, 900, 125, (ctx, w, h) => {
+    ctx.fillStyle = '#0b1a14';
+    ctx.fillRect(0, 0, w, h);
+    text(ctx, 'КОНСУЛЬТАЦИИ · ВКЛАДЫ · КРЕДИТЫ', w / 2, h / 2, { size: 50, align: 'center', color: '#7dffc0' });
+  }, 5.2, 3.15, -7.95);
+
+  // Зона 24/7: банкоматы и табло курсов у входа
+  for (const z of [4.9, 6.2]) {
+    const atm = new THREE.Group();
+    k.box(0.6, 1.9, 0.9, k.M(0x2b3440, { metalness: 0.4, roughness: 0.5 }), 0, 0.95, 0, atm);
+    k.sign(0.4, 0.6, 170, 256, (ctx, w, h) => {
+      ctx.fillStyle = '#1f7a4d';
+      ctx.fillRect(0, 0, w, h);
+      text(ctx, 'БАНК', w / 2, 60, { size: 36, align: 'center' });
+      text(ctx, '24/7', w / 2, 120, { size: 40, align: 'center', color: '#7dffc0' });
+    }, 0.31, 1.45, 0, Math.PI / 2, atm);
+    k.box(0.1, 0.05, 0.5, k.glow(0x3ddc84, 1), 0.31, 1.05, 0, atm);
+    atm.position.set(-8.55, 0, z);
     scene.add(atm);
+    k.reg(`atm${z}`, atm, 'Банкомат');
+    room.captions[`atm${z}`] = 'Банкомат. Кто его заряжает деньгами? Инкассаторы — загляни в их гараж 🚚';
   }
   k.sign(1.9, 1.1, 480, 280, (ctx, w, h) => {
     ctx.fillStyle = '#0d1b2a';
     ctx.fillRect(0, 0, w, h);
     text(ctx, 'КУРСЫ ВАЛЮТ', 24, 40, { size: 30, color: '#4cc9f0' });
     text(ctx, 'покупка  продажа', 190, 90, { size: 22, color: '#8fb3a4', weight: 600 });
-    [['$', '89.20', '92.40'], ['€', '96.50', '99.80'], ['¥', '12.10', '12.90']].forEach(([c, b, s], i) => {
+    [['$', '89.20', '92.40'], ['€', '96.50', '99.80'], ['¥', '12.10', '12.90']].forEach(([c, b, s2], i) => {
       text(ctx, c, 40, 140 + i * 50, { size: 38 });
       text(ctx, b, 200, 140 + i * 50, { size: 34, color: '#7dffc0' });
-      text(ctx, s, 340, 140 + i * 50, { size: 34, color: '#ffb3bb' });
+      text(ctx, s2, 340, 140 + i * 50, { size: 34, color: '#ffb3bb' });
     });
-  }, -8.97, 2.4, 6.2, Math.PI / 2);
+  }, -8.96, 2.9, -6.0, Math.PI / 2);
+
+  // Охранник у входа
+  const guard = k.person({ shirt: 0x22303d, pants: 0x1c2026, hair: 0x2b1d1a }, 2.4, 7.0, Math.PI + 0.3);
+  k.box(0.12, 0.06, 0.02, k.glow(0xffd166, 1), 0.08, 1.24, 0.19, guard);
+  k.reg('guard', guard, 'Охранник Виктор');
+  room.captions.guard = 'Охранник Виктор: «Добро пожаловать! Банк — это не только деньги, это доверие людей. Береги его»';
+
+  // Стойка с буклетами, кулер и плакат против мошенников
+  const rack = new THREE.Group();
+  k.box(0.9, 1.4, 0.35, k.M(0xe9e4da), 0, 0.7, 0, rack);
+  [0x3ddc84, 0x4cc9f0, 0xffb020, 0x9b6dff, 0xff7a45, 0xff4d5e].forEach((c, i) => k.box(0.22, 0.3, 0.03, k.M(c), -0.28 + (i % 3) * 0.28, 0.45 + Math.floor(i / 3) * 0.45, 0.19, rack));
+  rack.position.set(7.4, 0, 5.9);
+  rack.rotation.y = -Math.PI / 2;
+  scene.add(rack);
+  k.reg('rack', rack, 'Буклеты');
+  const TIPS = ['Буклет «Как копить»: сначала подушка безопасности, потом мечта.', 'Буклет «Мошенники»: банк никогда не просит код из СМС.', 'Буклет «Кредит»: платежи — не больше трети дохода.', 'Буклет «Вклады»: вклад даёт процент выше, но снять раньше — проценты сгорят.', 'Буклет «Пирамиды»: «гарантированные 30% в месяц» — всегда обман.'];
+  let tipN = 0;
+  room.captions.rack = () => TIPS[tipN++ % TIPS.length];
+  const cooler = new THREE.Group();
+  k.box(0.35, 1.0, 0.35, k.M(0xf4f4f4), 0, 0.5, 0, cooler);
+  k.cyl(0.14, 0.14, 0.42, new THREE.MeshStandardMaterial({ color: 0x7cc6ff, transparent: true, opacity: 0.6 }), 0, 1.22, 0, cooler);
+  cooler.position.set(-7.6, 0, 3.6);
+  scene.add(cooler);
+  k.reg('cooler', cooler, 'Кулер');
+  room.captions.cooler = '💧 Вода для посетителей. Мелочь, а людям приятно';
+  const poster = k.sign(1.3, 1.7, 360, 470, (ctx, w, h) => {
+    ctx.fillStyle = '#ff4d5e';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#fff7e0';
+    ctx.fillRect(14, 14, w - 28, h - 28);
+    text(ctx, '📞', w / 2, 90, { size: 90, align: 'center' });
+    text(ctx, 'ЗВОНЯТ', w / 2, 190, { size: 44, align: 'center', color: '#b3001b' });
+    text(ctx, '«ИЗ БАНКА»?', w / 2, 240, { size: 44, align: 'center', color: '#b3001b' });
+    text(ctx, 'Положи трубку', w / 2, 320, { size: 32, align: 'center', color: '#1d2430' });
+    text(ctx, 'и позвони сам', w / 2, 362, { size: 32, align: 'center', color: '#1d2430' });
+    text(ctx, 'по номеру на карте', w / 2, 404, { size: 28, align: 'center', color: '#1d2430', weight: 600 });
+  }, 8.97, 2.0, 6.0, -Math.PI / 2, null, false);
+  k.reg('poster', poster, 'Плакат');
+  room.captions.poster = 'Плакат: «Звонят из банка? Положи трубку и позвони сам». Мошенники как раз так и работают — спроси Валентину Петровну';
+
+  // Стена благодарностей: записки от клиентов, которым помог стажёр
+  const thanks = k.sign(2.5, 1.5, 750, 450, () => {}, -8.94, 2.0, -0.9, Math.PI / 2, null, false);
+  k.box(0.03, 1.62, 2.62, k.M(0x6d4a33), -8.985, 2.0, -0.9);
+  k.reg('thanks', thanks, 'Стена благодарностей');
+  room.markers.thanks = [-8.6, 3.1, -0.9, 1.0];
+  room.focus.thanks = { pos: [-6.2, 1.65, -0.9], look: [-8.9, 1.9, -0.9] };
+  const drawThanks = (notes) => thanks.userData.canvas.redraw((ctx, w, h) => {
+    ctx.fillStyle = '#b98b5e';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 400; i++) {
+      ctx.fillStyle = Math.random() < 0.5 ? 'rgba(80,50,20,0.12)' : 'rgba(255,230,190,0.12)';
+      ctx.fillRect(Math.random() * w, Math.random() * h, 3, 3);
+    }
+    text(ctx, 'СПАСИБО!', w / 2, 44, { size: 44, align: 'center', color: '#3a2412' });
+    if (!notes.length) {
+      text(ctx, 'пока пусто — помоги клиентам,', w / 2, 230, { size: 30, align: 'center', color: '#5b3a1e', weight: 600 });
+      text(ctx, 'и они напишут сюда', w / 2, 272, { size: 30, align: 'center', color: '#5b3a1e', weight: 600 });
+      return;
+    }
+    const COLORS = ['#fff3a3', '#c8f7d4', '#ffd6e0', '#cfe8ff', '#ffe0b8'];
+    notes.slice(0, 8).forEach((n, i) => {
+      const x = 30 + (i % 4) * 178;
+      const y = 86 + Math.floor(i / 4) * 178;
+      ctx.save();
+      ctx.translate(x + 80, y + 80);
+      ctx.rotate(((i * 37) % 11 - 5) * 0.012);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(-76, -72, 160, 160);
+      ctx.fillStyle = COLORS[i % COLORS.length];
+      ctx.fillRect(-80, -80, 160, 160);
+      ctx.fillStyle = '#e63946';
+      ctx.beginPath();
+      ctx.arc(0, -70, 9, 0, Math.PI * 2);
+      ctx.fill();
+      text(ctx, n.icon, 0, -20, { size: 56, align: 'center' });
+      const who = n.from.split(',')[0].split(' ')[0];
+      text(ctx, who.length > 9 ? `${who.slice(0, 8)}…` : who, 0, 46, { size: 22, align: 'center', color: '#3a2412', weight: 700 });
+      ctx.restore();
+    });
+  });
+  drawThanks([]);
+
+  // Гости холла: клиенты, которым помог стажёр, приходят в отделение
+  const bikeModel = (x, z, ry) => {
+    const g = new THREE.Group();
+    const tire = k.M(0x1d1d1d);
+    for (const bx of [-0.42, 0.42]) {
+      const w = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.035, 8, 24), tire);
+      w.position.set(bx, 0.3, 0);
+      g.add(w);
+    }
+    const fr = k.M(0xff9f1c, { roughness: 0.4 });
+    k.box(0.75, 0.05, 0.05, fr, 0, 0.55, 0, g).rotation.z = -0.15;
+    k.box(0.05, 0.42, 0.05, fr, -0.12, 0.42, 0, g).rotation.z = 0.35;
+    k.box(0.05, 0.5, 0.05, fr, 0.38, 0.5, 0, g).rotation.z = -0.3;
+    k.box(0.05, 0.05, 0.4, darkM, 0.44, 0.78, 0, g);
+    k.box(0.22, 0.05, 0.1, darkM, -0.22, 0.68, 0, g);
+    g.position.set(x, 0, z);
+    g.rotation.y = ry;
+    scene.add(g);
+    return g;
+  };
+  const guests = {
+    gran: k.person({ shirt: 0x7b3f5e, hair: 0xc9ccd3, sit: true }, -4.4, 5.05, Math.PI),
+    misha: (() => {
+      const g = new THREE.Group();
+      k.person({ shirt: 0xff9f1c, hair: 0x3b2a20, h: 0.72 }, 0, 0, -0.6, g);
+      g.add(bikeModel(0.55, 0.15, -0.6));
+      g.position.set(-2.3, 0, 5.9);
+      scene.add(g);
+      return g;
+    })(),
+    maxim: k.person({ shirt: 0x90be6d, hair: 0x3e2723 }, -7.4, 5.5, Math.PI / 2),
+    artyom: (() => {
+      const g = k.person({ shirt: 0x06d6a0, hair: 0x1d1d1d }, 6.2, 1.4, -Math.PI / 2);
+      k.box(0.42, 0.42, 0.3, k.M(0xffd166), 0, 1.15, -0.3, g);
+      return g;
+    })(),
+    croissants: (() => {
+      const g = new THREE.Group();
+      k.box(0.5, 0.12, 0.35, k.M(0xf4e1c1), 0, 0, 0, g);
+      for (let i = 0; i < 4; i++) k.sphere(0.06, k.M(0xd9a066), -0.15 + i * 0.1, 0.1, 0, g).scale.set(1.6, 0.8, 1);
+      g.position.set(7.4, 1.48, 5.9);
+      scene.add(g);
+      return g;
+    })(),
+  };
+  // на месте Валентины Петровны, пока она не пришла, сидит обычный посетитель
+  const granStand = k.person({ shirt: 0x8e7dbe, hair: 0x6b3e26, sit: true }, -4.4, 5.05, Math.PI);
+  for (const [id, obj] of Object.entries(guests)) {
+    k.reg(`guest_${id}`, obj, { gran: 'Валентина Петровна', misha: 'Миша', maxim: 'Максим', artyom: 'Артём', croissants: 'Круассаны' }[id]);
+    show(obj, false);
+  }
+  room.obstacles.push([-8.6, -1.5, -7.4, -5.9], [3.1, 7.4, -7.6, -5.4], [-9, -7.9, 4.3, 6.8], [7.0, 7.8, 5.4, 6.4], [-7.9, -7.3, 3.3, 3.9], [2.1, 2.7, 6.7, 7.3], [-2.7, -1.5, 5.6, 6.3], [5.9, 6.5, 1.1, 1.7]);
+
+  // Сюжет меняет холл: гости, записки, круассаны
+  room.setStory = (state) => {
+    const guestsOn = lobbyGuests(state);
+    for (const [id, obj] of Object.entries(guests)) {
+      show(obj, !!guestsOn[id]);
+      if (guestsOn[id]) room.captions[`guest_${id}`] = guestsOn[id];
+    }
+    show(granStand, !guestsOn.gran);
+    drawThanks(thanksNotes(state));
+  };
 
   // Двери кабинетов
   const doorPlates = {};
@@ -304,12 +523,14 @@ export function buildLobby(world) {
       r.scale.set(s, s, s);
     }
     people.forEach((pp, i) => (pp.position.y = Math.max(0, Math.sin(t * 1.6 + i) * 0.012)));
+    atWindows.forEach((pp, i) => (pp.rotation.y = Math.PI + Math.sin(t * 0.7 + i * 2) * 0.25));
     t0 += dt;
     if (t0 > 2.5) {
       t0 = 0;
       shown++;
       if (shown % PROFESSIONS.length === 0) ticket++;
       drawBoard();
+      drawQueue(shown % 7);
     }
   };
   return room;

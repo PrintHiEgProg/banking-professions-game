@@ -685,13 +685,19 @@ export class World {
     map.set(id, { id, object, label });
   }
 
-  pick(ndc) {
+  // Что под указателем (или в прицеле). maxDist — дальше этого не дотянуться.
+  pick(ndc, maxDist = Infinity) {
     this.raycaster.setFromCamera(ndc, this.camera);
+    this.raycaster.far = maxDist;
     const hits = this.raycaster.intersectObjects(this.scene.children, true);
+    this.raycaster.far = Infinity;
     for (const h of hits) {
       let o = h.object;
       while (o && o.userData.interactId == null) o = o.parent;
-      if (o) return this.interactables.get(o.userData.interactId) || null;
+      if (o) {
+        const it = this.interactables.get(o.userData.interactId);
+        return it ? { ...it, dist: h.distance } : null;
+      }
       return null;
     }
     return null;
