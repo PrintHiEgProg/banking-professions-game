@@ -93,24 +93,26 @@ export function createKit(world, scene, interactables) {
     return cv.tex;
   }
   // Пол, потолок и четыре стены прямоугольной комнаты
-  function shell({ w, d, h, floor = 0xb8b8b8, wall = 0xe8e4dc, ceil = 0xf2f2f2, floorTex = null, wallTex = true }) {
+  // cz — центр комнаты по глубине (холл вытянут назад, а вход остаётся на месте)
+  function shell({ w, d, h, floor = 0xb8b8b8, wall = 0xe8e4dc, ceil = 0xf2f2f2, floorTex = null, wallTex = true, cz = 0 }) {
     const fl = new THREE.Mesh(new THREE.PlaneGeometry(w, d), M(floor, { map: floorTex || noiseTex(128, 235, 30, [w / 2, d / 2]), roughness: 0.6 }));
     fl.rotation.x = -Math.PI / 2;
+    fl.position.z = cz;
     put(fl);
     const ce = new THREE.Mesh(new THREE.PlaneGeometry(w, d), M(ceil, { roughness: 1 }));
     ce.rotation.x = Math.PI / 2;
-    ce.position.y = h;
+    ce.position.set(0, h, cz);
     put(ce);
     const wm = M(wall, { map: wallTex ? noiseTex(64, 240, 18, [4, 2]) : null, roughness: 0.95 });
-    plane(w, h, wm, 0, h / 2, -d / 2);
-    plane(w, h, wm, 0, h / 2, d / 2, Math.PI);
-    plane(d, h, wm, -w / 2, h / 2, 0, Math.PI / 2);
-    plane(d, h, wm, w / 2, h / 2, 0, -Math.PI / 2);
+    plane(w, h, wm, 0, h / 2, cz - d / 2);
+    plane(w, h, wm, 0, h / 2, cz + d / 2, Math.PI);
+    plane(d, h, wm, -w / 2, h / 2, cz, Math.PI / 2);
+    plane(d, h, wm, w / 2, h / 2, cz, -Math.PI / 2);
     const base = M(0x3a3f47);
-    box(w, 0.1, 0.03, base, 0, 0.05, -d / 2 + 0.015);
-    box(w, 0.1, 0.03, base, 0, 0.05, d / 2 - 0.015);
-    box(0.03, 0.1, d, base, -w / 2 + 0.015, 0.05, 0);
-    box(0.03, 0.1, d, base, w / 2 - 0.015, 0.05, 0);
+    box(w, 0.1, 0.03, base, 0, 0.05, cz - d / 2 + 0.015);
+    box(w, 0.1, 0.03, base, 0, 0.05, cz + d / 2 - 0.015);
+    box(0.03, 0.1, d, base, -w / 2 + 0.015, 0.05, cz);
+    box(0.03, 0.1, d, base, w / 2 - 0.015, 0.05, cz);
     return { wallMat: wm };
   }
   // Посетитель: капсула-тело, голова, волосы. Сидящий — ниже и с согнутыми ногами.

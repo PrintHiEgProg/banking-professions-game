@@ -17,7 +17,7 @@ await page.waitForFunction(() => !document.querySelector('#loading.show'), null,
 await page.fill('#nick', 'Егор');
 await page.click('.av-btn:nth-child(3)');
 await shot('0-title');
-await page.click('#btn-start');
+await page.click('#btn-start', { noWaitAfter: true });
 await page.waitForTimeout(400);
 await page.click('.intro-skip');
 await dismissMentor(page, `shots/${tag}-1-welcome.png`);

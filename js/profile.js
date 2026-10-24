@@ -28,7 +28,7 @@ function triedStrip(cp) {
   );
 }
 
-// Экран профиля. fresh — открылся сам, когда игрок попробовал все 5 профессий. preview — режим жюри.
+// Экран профиля. fresh — открылся сам, когда игрок попробовал нужное число профессий. preview — режим жюри.
 export function profileCard(progress, { fresh = false, preview = false, source = 'other' } = {}) {
   return new Promise((resolve) => {
     const { box: card, close } = overlay('profile-card');
@@ -49,9 +49,9 @@ export function profileCard(progress, { fresh = false, preview = false, source =
     if (!showResult) {
       box.append(
         el('h2', {}, 'Какая профессия банка — твоя?'),
-        el('p', { class: 'muted' }, 'Сыграй хотя бы одну смену в каждом из 5 кабинетов — и профиль покажет, какая работа подходит именно тебе.'),
+        el('p', { class: 'muted' }, `Сыграй хотя бы одну смену в любых ${cp.need} кабинетах — и профиль покажет, какая работа подходит именно тебе.`),
         triedStrip(cp),
-        el('p', { class: 'pf-count' }, `Попробовано: ${cp.tried.length} из ${PROFESSIONS.length}`),
+        el('p', { class: 'pf-count' }, `Попробовано: ${cp.tried.length} из ${cp.need} · всего профессий ${PROFESSIONS.length}`),
         cp.evidence > 0 ? el('h4', {}, 'Твой стиль — пока предварительно') : null,
         cp.evidence > 0 ? traitBars(cp.traits) : null,
         el('button', { class: 'btn primary', onClick: done }, 'Понятно'),
@@ -63,7 +63,7 @@ export function profileCard(progress, { fresh = false, preview = false, source =
     const study = studyRow(top.prof);
     box.style.setProperty('--pc', top.prof.color);
     box.append(
-      fresh ? el('div', { class: 'cert-mentor' }, el('span', { class: 'cm-ava', html: portrait('mentor', 'happy') }), el('p', {}, el('b', {}, `${MENTOR.name}: `), `«${progress.nickname}, ты заглянул(а) во все пять кабинетов. Вот что я увидела»`)) : null,
+      fresh ? el('div', { class: 'cert-mentor' }, el('span', { class: 'cm-ava', html: portrait('mentor', 'happy') }), el('p', {}, el('b', {}, `${MENTOR.name}: `), `«${progress.nickname}, ты заглянул(а) уже в ${cp.tried.length} кабинетов. Вот что я увидела»`)) : null,
       !cp.ready ? el('p', { class: 'pf-note' }, `Предварительно: попробовано ${cp.tried.length} из ${PROFESSIONS.length} профессий`) : null,
       el('div', { class: 'pf-match' }, el('small', {}, 'Тебе подходит'), el('div', { class: 'pf-prof' }, el('span', {}, top.prof.icon), el('b', {}, top.prof.full)), el('span', { class: 'pf-pill' }, `совпадение ${cp.match}%`)),
       el('ul', { class: 'pf-why' }, whyLines(cp).map((t) => el('li', {}, t))),
@@ -211,7 +211,9 @@ export async function renderShareCard(progress, cp = careerProfile(progress)) {
   ctx.fillText(prof.icon, cx, 815);
   ctx.font = F(800, 66);
   ctx.fillStyle = prof.color;
-  const lines = wrap(ctx, prof.full, W - 160);
+  // длинное полное название (в две строки) — заменяем коротким, чтобы хватило места стилю игры
+  const full = wrap(ctx, prof.full, W - 160);
+  const lines = full.length > 1 ? wrap(ctx, prof.title, W - 160) : full;
   lines.forEach((l, i) => ctx.fillText(l, cx, 912 + i * 74));
   let y = 912 + (lines.length - 1) * 74 + 72;
   ctx.font = F(800, 30);
@@ -222,13 +224,14 @@ export async function renderShareCard(progress, cp = careerProfile(progress)) {
   ctx.fill();
   ctx.fillStyle = '#04140c';
   ctx.fillText(pill, cx, y + 1);
-  // стиль игры
-  y += 80;
+  // стиль игры: строки ужимаются, чтобы не наезжать на подвал при любом числе сторон стиля
+  y += 66;
+  const rowH = Math.min(50, (H - 100 - y) / TRAIT_IDS.length);
   ctx.textAlign = 'left';
   for (const t of TRAIT_IDS) {
     const v = cp.traits[t];
     ctx.fillStyle = '#ffffff';
-    ctx.font = F(700, 30);
+    ctx.font = F(700, rowH < 46 ? 28 : 30);
     ctx.fillText(`${TRAITS[t].icon} ${TRAITS[t].name}`, 110, y);
     rr(ctx, 470, y - 13, 420, 26, 13);
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
@@ -240,7 +243,7 @@ export async function renderShareCard(progress, cp = careerProfile(progress)) {
     ctx.textAlign = 'right';
     ctx.fillText(pct(v), 975, y);
     ctx.textAlign = 'left';
-    y += 50;
+    y += rowH;
   }
   // подвал
   ctx.textAlign = 'center';

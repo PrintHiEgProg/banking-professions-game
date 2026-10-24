@@ -8,7 +8,9 @@ SELECT * FROM (VALUES
   ('credit',   '📝 Кредитный эксперт',      2),
   ('advisor',  '📈 Финансовый консультант', 3),
   ('cash',     '🚚 Инкассатор',             4),
-  ('security', '🛡 Финансовая безопасность', 5)
+  ('security', '🛡 Финансовая безопасность', 5),
+  ('hr',       '🤝 HR-специалист',          6),
+  ('devops',   '⚙️ DevOps-инженер',         7)
 ) AS t(prof, prof_title, ord);
 
 -- Все события с понятными подписями
@@ -55,7 +57,8 @@ SELECT DISTINCT ON (e.anon_id) e.anon_id, e.received_at, e.prof, p.prof_title, e
        (e.data->>'people')::float * 100    AS people,
        (e.data->>'numbers')::float * 100   AS numbers,
        (e.data->>'attention')::float * 100 AS attention,
-       (e.data->>'pressure')::float * 100  AS pressure
+       (e.data->>'pressure')::float * 100  AS pressure,
+       (e.data->>'tech')::float * 100      AS tech
 FROM game_events e LEFT JOIN v_prof p ON p.prof = e.prof
 WHERE e.event = 'profile_ready'
 ORDER BY e.anon_id, e.received_at DESC;

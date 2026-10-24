@@ -12,7 +12,7 @@ await page.evaluate(() => { localStorage.clear(); localStorage.setItem('bank.not
 await page.reload();
 await page.waitForFunction(() => !document.querySelector('#loading.show'), null, { timeout: 30000 });
 await page.fill('#nick', 'Тест');
-await page.click('#btn-start');
+await page.click('#btn-start', { noWaitAfter: true });
 await page.waitForTimeout(400);
 await page.click('.intro-skip');
 await dismissMentor(page);

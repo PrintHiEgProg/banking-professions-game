@@ -9,6 +9,7 @@ export const TRAITS = {
   numbers: { icon: '📊', name: 'Расчёт', strong: 'считаешь, сравниваешь и решаешь на холодную голову' },
   attention: { icon: '🔎', name: 'Внимательность', strong: 'замечаешь детали, которые другие пропускают' },
   pressure: { icon: '⚡', name: 'Выдержка', strong: 'не теряешься, когда время идёт и ставки высоки' },
+  tech: { icon: '🧩', name: 'Системность', strong: 'видишь, как всё устроено, и чинишь причину, а не симптом' },
 };
 export const TRAIT_IDS = Object.keys(TRAITS);
 
@@ -25,18 +26,18 @@ const SHIFT_TRAITS = {
     { numbers: 0.5, attention: 0.3, people: 0.2 },
     { attention: 0.8, numbers: 0.2 },
     { people: 0.6, attention: 0.4 },
-    { numbers: 0.6, attention: 0.4 },
+    { numbers: 0.5, attention: 0.3, tech: 0.2 },
     { numbers: 0.8, people: 0.2 },
   ],
   advisor: [
-    { numbers: 0.5, people: 0.3, attention: 0.2 },
+    { numbers: 0.4, people: 0.3, tech: 0.2, attention: 0.1 },
     { numbers: 0.6, people: 0.4 },
     { numbers: 0.7, people: 0.3 },
     { people: 0.8, numbers: 0.2 },
     { people: 0.4, numbers: 0.3, attention: 0.3 },
   ],
   cash: [
-    { pressure: 0.4, attention: 0.4, numbers: 0.2 },
+    { pressure: 0.3, attention: 0.3, tech: 0.2, numbers: 0.2 },
     { attention: 0.8, pressure: 0.2 },
     { attention: 0.5, pressure: 0.5 },
     { pressure: 0.6, numbers: 0.4 },
@@ -45,9 +46,23 @@ const SHIFT_TRAITS = {
   security: [
     { attention: 0.8, pressure: 0.2 },
     { pressure: 0.6, attention: 0.4 },
-    { numbers: 0.7, attention: 0.3 },
+    { numbers: 0.4, tech: 0.4, attention: 0.2 },
     { people: 0.6, pressure: 0.4 },
-    { attention: 0.5, numbers: 0.5 },
+    { attention: 0.4, numbers: 0.3, tech: 0.3 },
+  ],
+  hr: [
+    { people: 0.5, attention: 0.3, pressure: 0.2 },
+    { attention: 0.6, people: 0.4 },
+    { people: 0.6, attention: 0.4 },
+    { attention: 0.6, numbers: 0.2, people: 0.2 },
+    { people: 0.8, pressure: 0.2 },
+  ],
+  devops: [
+    { tech: 0.5, attention: 0.3, pressure: 0.2 },
+    { tech: 0.4, pressure: 0.6 },
+    { attention: 0.6, tech: 0.4 },
+    { tech: 0.5, attention: 0.5 },
+    { tech: 0.5, pressure: 0.3, attention: 0.2 },
   ],
 };
 
@@ -62,6 +77,11 @@ const MOMENTS = [
   { test: (s) => (s.curator ? s.curator === 'found' : null), w: { attention: 0.8, numbers: 0.6 } },
   { test: (s) => (s.bakery ? s.bakery === 'good' : null), w: { numbers: 0.8 } },
   { test: (s) => (s.artyomCredit ? s.artyomCredit === 'good' : null), w: { numbers: 0.5, people: 0.3 } },
+  { test: (s) => (s.insider ? s.insider !== 'hired' : null), w: { attention: 0.8, people: 0.4 } },
+  { test: (s) => (s.masha ? s.masha === 'stayed' : null), w: { people: 1 } },
+  { test: (s) => (s.night ? s.night === 'held' : null), w: { pressure: 0.8, tech: 0.4 } },
+  { test: (s) => (s.stuffing ? s.stuffing === 'stopped' : null), w: { attention: 0.6, tech: 0.6 } },
+  { test: (s) => (s.qr ? s.qr === 'smooth' : null), w: { tech: 0.6, pressure: 0.4 } },
 ];
 
 // Что важнее всего в каждой профессии
@@ -71,6 +91,8 @@ export const PROF_NEEDS = {
   advisor: { people: 0.45, numbers: 0.45, attention: 0.1 },
   cash: { pressure: 0.45, attention: 0.4, numbers: 0.15 },
   security: { attention: 0.45, pressure: 0.3, people: 0.15, numbers: 0.1 },
+  hr: { people: 0.5, attention: 0.3, pressure: 0.1, numbers: 0.1 },
+  devops: { tech: 0.45, attention: 0.3, pressure: 0.25 },
 };
 
 // «Как тебе эта работа?» — ответ после смены
@@ -91,6 +113,9 @@ export const BANK_PATH = {
 };
 
 const triedOf = (progress) => PROFESSIONS.filter((p) => Object.keys(progress.profs[p.id]?.best || {}).length > 0).map((p) => p.id);
+
+// Профиль готов, когда попробовано столько профессий (любых)
+export const PROFILE_NEED = Math.min(5, PROFESSIONS.length);
 
 export function careerProfile(progress) {
   const tried = triedOf(progress);
@@ -139,7 +164,8 @@ export function careerProfile(progress) {
   const match = Math.round(Math.min(97, Math.max(55, 45 + top.total * 55)));
   return {
     tried,
-    ready: tried.length === PROFESSIONS.length,
+    ready: tried.length >= PROFILE_NEED,
+    need: PROFILE_NEED,
     traits,
     topTraits: mine.slice(0, 2),
     evidence,

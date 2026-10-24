@@ -1,4 +1,4 @@
-import { ADVISOR_SHIFTS, monthlyFree, forecast, income, spend } from '../js/data/advisor.js';
+import { ADVISOR_SHIFTS, monthlyFree, forecast, income, spend } from '../game/js/data/advisor.js';
 for (const [n, cfg] of Object.entries(ADVISOR_SHIFTS)) {
   const all = {}; const waste = {}; const wasteHalfFun = {};
   for (const e of cfg.expenses) {

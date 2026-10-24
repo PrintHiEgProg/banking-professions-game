@@ -1,4 +1,4 @@
-import { CASH_SHIFTS, schedule, pointsFor, fmt, sameAsYesterday } from '../js/data/cash.js';
+import { CASH_SHIFTS, schedule, pointsFor, fmt, sameAsYesterday } from '../game/js/data/cash.js';
 const show = (n, diff, order) => {
   const cfg = CASH_SHIFTS[n];
   const pts = pointsFor(cfg, diff);

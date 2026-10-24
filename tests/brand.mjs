@@ -21,7 +21,7 @@ await page.waitForFunction(() => !document.querySelector('#loading.show'), null,
 await page.fill('#nick', 'Егор');
 await wait(600);
 await shot('00-title');
-await page.click('#btn-start');
+await page.click('#btn-start', { noWaitAfter: true });
 await wait(400);
 await page.click('.intro-skip');
 await dismissMentor(page, null);

@@ -22,7 +22,7 @@ await page.reload();
 await page.waitForFunction(() => !document.querySelector('#loading.show'), null, { timeout: 30000 });
 await page.fill('#nick', 'Тест');
 await page.click(`.diff-btn[data-diff="${diff}"]`);
-await page.click('#btn-start');
+await page.click('#btn-start', { noWaitAfter: true });
 await wait(400);
 await page.click('.intro-skip');
 const met = await dismissMentor(page, `shots/${tag}-00-mentor.png`);
@@ -157,12 +157,12 @@ while (Date.now() - t0 < 150000) {
     decide: !!document.querySelector('.panel.credit .decide .btn.safe'),
     talkBtn: !!document.querySelector('.panel.credit .talk-btn'),
     dlg: !!document.querySelector('.panel.credit .dlg-choices button:not(:disabled)'),
-    rescue: !!document.querySelector('.panel.credit .rescue'),
+    rescue: !!document.querySelector('#overlay-root.active .panel.credit .cr-talk > .btn.primary') && !document.querySelector('.panel.credit .decided.refuse, .panel.credit .decided.approve'),
     month: !!document.querySelector('.panel.credit.month .pf-body .btn.primary:not(.hidden)'),
   }));
   if (!st.panel && st.target) { await ev(() => window.__bank.hit()); await wait(1300); continue; }
   if (st.month) { await wait(600); await shot('22-credit-month'); await page.click('.panel.credit.month .pf-body .btn.primary'); await wait(800); continue; }
-  if (st.rescue) { await wait(1600); await shot('21-credit-rescue'); await page.click('.panel.credit .cr-talk > .btn.primary'); await wait(1500); continue; }
+  if (st.rescue) { await wait(1600); await shot('21-credit-rescue'); await page.click('.panel.credit .cr-talk > .btn.primary', { timeout: 5000 }).catch(() => {}); await wait(1500); continue; }
   if (st.dlg) { await ev(() => { const bs = [...document.querySelectorAll('.panel.credit .dlg-choices button:not(:disabled)')]; (bs.find((b) => b.classList.contains('calm')) || bs[0]).click(); }); await wait(500); continue; }
   if (st.name === 'Максим' && st.decide && !st.talkBtn && !shotC.q) {
     shotC.q = 1;

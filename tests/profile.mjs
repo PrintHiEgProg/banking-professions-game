@@ -27,7 +27,7 @@ await page.fill('#nick', 'Константин');
 await page.click('.av-btn:nth-child(3)');
 await wait(300);
 await shot('00-title');
-await page.click('#btn-start');
+await page.click('#btn-start', { noWaitAfter: true });
 await wait(400);
 await page.click('.intro-skip');
 await dismissMentor(page, null);

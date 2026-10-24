@@ -11,7 +11,7 @@ await page.goto(URL);
 await page.waitForFunction(() => !document.querySelector('#loading.show'), null, { timeout: 30000 });
 await page.screenshot({ path: `${out}/01-title.png` });
 await page.fill('#nick', 'Тест');
-await page.click('#btn-start');
+await page.click('#btn-start', { noWaitAfter: true });
 await page.waitForTimeout(500);
 await page.click('.intro-skip');
 await dismissMentor(page);

@@ -273,7 +273,7 @@ export function certificate(progress) {
       brandImg('cert-brand'),
       el('div', { class: 'si-top' }, '🏆 СЕРТИФИКАТ СТАЖЁРА'),
       el('h1', {}, progress.nickname),
-      el('p', { class: 'si-goal' }, 'Пройдены все 5 профессий банка'),
+      el('p', { class: 'si-goal' }, `Пройдены все ${PROFESSIONS.length} профессий банка`),
       el('div', { class: 'cert-mentor' }, el('span', { class: 'cm-ava', html: portrait('mentor', 'happy') }), el('p', {}, el('b', {}, `${MENTOR.name}: `), `«${progress.nickname}, банк держится на людях — внимательных, честных и смелых. Приходи к нам после колледжа или вуза: место стажёра за тобой»`)),
       week.length ? el('h4', {}, '🧵 Как прошла неделя') : null,
       week.length ? el('div', { class: 'cons-list' }, week.map((w) => el('div', { class: `cons ${w.good ? 'good' : 'bad'}` }, el('span', {}, w.icon), el('p', {}, w.text)))) : null,
@@ -351,7 +351,9 @@ export function mentorTalk(progress, { lines = [], news = [], tip = null, btn = 
 // Звание стажёра растёт вместе со звёздами
 export function staffRank(progress) {
   const stars = PROFESSIONS.reduce((s, p) => s + profStars(progress.profs[p.id]), 0);
-  const r = [[65, 'Эксперт банка'], [50, 'Ведущий специалист'], [30, 'Специалист'], [10, 'Младший специалист'], [0, 'Стажёр']].find(([m]) => stars >= m)[1];
+  // первые звания — за первые успехи; старшие — доля от всех звёзд, сколько бы ни было профессий
+  const max = PROFESSIONS.length * 15;
+  const r = [[Math.round(max * 0.87), 'Эксперт банка'], [Math.round(max * 0.67), 'Ведущий специалист'], [30, 'Специалист'], [10, 'Младший специалист'], [0, 'Стажёр']].find(([m]) => stars >= m)[1];
   return { stars, rank: r };
 }
 
@@ -363,7 +365,7 @@ export function badgeEl(progress) {
     'div',
     { class: 'staff-badge' },
     el('div', { class: 'sb-top' }, el('span', {}, '🏦 БАНК · ОТДЕЛЕНИЕ №1'), el('span', {}, 'ПРОПУСК')),
-    el('div', { class: 'sb-body' }, el('div', { class: 'sb-photo', html: avatarSvg(progress.avatar || 0) }), el('div', {}, el('small', {}, 'сотрудник'), el('b', {}, progress.nickname), el('span', { class: 'sb-rank' }, rank), el('small', {}, `★ ${stars}/75 · смен ${done}/25`))),
+    el('div', { class: 'sb-body' }, el('div', { class: 'sb-photo', html: avatarSvg(progress.avatar || 0) }), el('div', {}, el('small', {}, 'сотрудник'), el('b', {}, progress.nickname), el('span', { class: 'sb-rank' }, rank), el('small', {}, `★ ${stars}/${PROFESSIONS.length * 15} · смен ${done}/${PROFESSIONS.length * 5}`))),
     el('div', { class: 'sb-strip' }, PROFESSIONS.map((p) => el('span', { class: profDone(progress.profs[p.id]) ? 'on' : '', style: { '--pc': p.color }, title: p.title }, p.icon))),
   );
 }

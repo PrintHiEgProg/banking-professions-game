@@ -22,7 +22,7 @@ await page.waitForFunction(() => !document.querySelector('#loading.show'), null,
 await page.fill('#nick', 'Константин');
 await page.click('.av-btn:nth-child(2)');
 await shot('00-title');
-await page.click('#btn-start');
+await page.click('#btn-start', { noWaitAfter: true });
 await wait(400);
 await page.click('.intro-skip');
 await page.waitForSelector('.panel.brief.mentor .btn.primary:not(.hidden)', { timeout: 20000 }).catch(() => {});

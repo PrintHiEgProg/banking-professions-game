@@ -1,6 +1,6 @@
 // Аудит интерфейса: что выходит за экран, торчит из панели или обрезано без прокрутки
 import fs from 'node:fs';
-export const AUDIT_LOG = './audit.log';
+export const AUDIT_LOG = new URL('./audit.log', import.meta.url).pathname;
 export async function audit(page, label) {
   const issues = await page.evaluate(() => {
     const vw = innerWidth;
@@ -56,6 +56,12 @@ export async function audit(page, label) {
         if ((cs.overflowY === 'hidden' || cs.overflowY === 'clip') && el.scrollHeight > el.clientHeight + 6 && el.clientHeight > 40) out.push(`обрезано по высоте без прокрутки: ${sel(el)} ${el.scrollHeight}>${el.clientHeight}`);
         if ((cs.overflowX === 'hidden' || cs.overflowX === 'clip') && el.scrollWidth > el.clientWidth + 6 && el.clientWidth > 40 && !/nowrap/.test(cs.whiteSpace)) out.push(`обрезано по ширине: ${sel(el)} ${el.scrollWidth}>${el.clientWidth}`);
       }
+    }
+    // «сломанный» текст: [object …], undefined, NaN в видимых окнах
+    for (const root of document.querySelectorAll('#overlay-root .panel.show, .screen-wrap.show .screen-card, .tour-bubble, #objective.show, #caption.show')) {
+      const t = root.innerText || '';
+      const m = t.match(/\[object \w+\]|\bundefined\b|\bNaN\b|\bnull\b/);
+      if (m) out.push(`сломанный текст «${m[0]}» в ${sel(root)}: …${t.slice(Math.max(0, m.index - 40), m.index + 30).replace(/\s+/g, ' ')}…`);
     }
     // кнопки, до которых не добраться: за пределами экрана и без прокрутки к ним
     for (const btn of document.querySelectorAll('#overlay-root .panel.show button, .screen-wrap.show button')) {

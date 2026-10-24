@@ -36,7 +36,7 @@ let attractAngle = 0;
 let target = null;
 let targetHit = null;
 
-const TARGET_LABEL = { monitor: 'Монитор', phone: 'Телефон', board: 'Доска', window: 'Окно', wall: 'Видеостена', radar: 'Монитор', kiosk: 'Терминал', call: 'Кнопка вызова', cashbox: 'Касса', docs: 'Заявки', calendar: 'Календарь', table: 'Столик', screen: 'Экран', map: 'Карта', van: 'Броневик', vault: 'Хранилище', mentor: 'Наставник' };
+const TARGET_LABEL = { laptop: 'Ноутбук', folder: 'Папка СБ', door: 'Дверь', rack: 'Серверы', monitor: 'Монитор', phone: 'Телефон', board: 'Доска', window: 'Окно', wall: 'Видеостена', radar: 'Монитор', kiosk: 'Терминал', call: 'Кнопка вызова', cashbox: 'Касса', docs: 'Заявки', calendar: 'Календарь', table: 'Столик', screen: 'Экран', map: 'Карта', van: 'Броневик', vault: 'Хранилище', mentor: 'Наставник' };
 
 // Подписи к предметам офиса финансовой безопасности
 const SECURITY_CAPTIONS = {
@@ -102,7 +102,7 @@ function refreshHud() {
     void n.offsetWidth;
     n.parentElement.classList.add('bump');
   };
-  set('#stat-clients', `${stars}/75`);
+  set('#stat-clients', `${stars}/${PROFESSIONS.length * 15}`);
   set('#stat-money', `${progress.knowledge.length}/${Object.keys(KNOWLEDGE).length}`);
   set('#stat-score', num(progress.stats.score));
 }
@@ -376,7 +376,7 @@ function setPaused(p, showMenu = true) {
 // ─────────────────────────── вход в игру ───────────────────────────
 async function begin(p, withIntro) {
   progress = p;
-  // Режим жюри: все 25 смен открыты сразу, чтобы показать любую сторону профессии
+  // Режим жюри: все смены всех профессий открыты сразу, чтобы показать любую сторону профессии
   if (settings.jury) for (const id of Object.keys(progress.profs)) progress.profs[id].unlocked = 5;
   ctx.state = progress;
   ctx.diff = DIFFICULTY[progress.difficulty] || DIFFICULTY.normal;
@@ -422,7 +422,7 @@ async function playIntro() {
     if (waitResolve) waitResolve();
   };
   audio.startMusic('calm');
-  const lines = ['Понедельник. Первая неделя стажировки в банке.', 'Пять кабинетов — пять профессий: операционист, кредитный эксперт, консультант, инкассатор, безопасность.', `Одна неделя, за которую многое случится. Тебя уже ждут, ${progress.nickname}.`];
+  const lines = ['Понедельник. Первая неделя стажировки в банке.', 'Семь кабинетов — семь профессий: операционист, кредитный эксперт, консультант, инкассатор, безопасность, HR и DevOps.', `Одна неделя, за которую многое случится. Тебя уже ждут, ${progress.nickname}.`];
   for (const line of lines) {
     if (skipped) break;
     const p = el('p');
@@ -520,7 +520,7 @@ async function enterLobby() {
   if (careerProfile(progress).ready && !progress.profileShown && mode === 'lobby') await revealProfile();
 }
 
-// Все 5 профессий попробованы — наставник показывает профиль стажёра
+// Попробовано достаточно профессий — наставник показывает профиль стажёра
 async function revealProfile() {
   progress.profileShown = true;
   save();
@@ -599,8 +599,10 @@ function mentorChat() {
   const fresh = takeNews(progress, 3);
   const news = fresh.length ? fresh : recentNews(progress, 3);
   const untouched = PROFESSIONS.filter((p) => !profDone(progress.profs[p.id]));
-  const lines = [done === 0 ? 'Не знаешь, с чего начать? Любая дверь — хороший выбор. В первой смене каждой профессии — самое интересное.' : done >= 25 ? 'Все 25 смен позади! Ты попробовал(а) себя везде — это редкость.' : `Пройдено смен: ${done} из 25. Хороший темп, {name}!`];
-  const tip = untouched.length ? `💡 Загляни к профессии «${untouched[0].title}» ${untouched[0].icon} — там ждёт первая смена. Попробуешь все пять — на карьерном стенде у стены справа появится твой профиль: какая работа подходит тебе.` : '💡 Твой профиль стажёра — на карьерном стенде у стены справа. Переиграй смены на три звезды — лучший результат сохраняется.';
+  const all = PROFESSIONS.length * 5;
+  const lines = [done === 0 ? 'Не знаешь, с чего начать? Любая дверь — хороший выбор. В первой смене каждой профессии — самое интересное.' : done >= all ? `Все ${all} смен позади! Ты попробовал(а) себя везде — это редкость.` : `Пройдено смен: ${done} из ${all}. Хороший темп, {name}!`];
+  const cp = careerProfile(progress);
+  const tip = untouched.length ? `💡 Загляни к профессии «${untouched[0].title}» ${untouched[0].icon} — там ждёт первая смена. ${cp.ready ? 'Твой профиль стажёра уже готов — он на карьерном стенде у стены справа.' : `Попробуешь ${cp.need} профессий — на карьерном стенде у стены справа появится твой профиль: какая работа подходит тебе.`}` : '💡 Твой профиль стажёра — на карьерном стенде у стены справа. Переиграй смены на три звезды — лучший результат сохраняется.';
   save();
   return { lines, news, tip, btn: 'Спасибо!' };
 }
@@ -986,6 +988,11 @@ const RUNNERS = {
 
 async function runStep(prof, shift, step) {
   try {
+    // 'файл:функция' — механика из js/episodes/ без отдельной записи в RUNNERS
+    if (!RUNNERS[step.run] && step.run.includes(':')) {
+      const [file, fn] = step.run.split(':');
+      return await episode(file, fn, step.target);
+    }
     return await RUNNERS[step.run](step);
   } catch (e) {
     console.error(e);

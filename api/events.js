@@ -6,10 +6,10 @@
 import pg from 'pg';
 
 const EVENTS = new Set(['session_start', 'game_start', 'tutorial_done', 'cabinet_enter', 'shift_start', 'shift_end', 'like', 'profile_ready', 'profile_open', 'career_click', 'share_card', 'certificate']);
-const PROFS = new Set(['teller', 'credit', 'advisor', 'cash', 'security']);
+const PROFS = new Set(['teller', 'credit', 'advisor', 'cash', 'security', 'hr', 'devops']);
 const AGES = new Set(['7-10', '11-13', '14+']);
 const DEVICES = new Set(['mobile', 'tablet', 'desktop']);
-const DATA_KEYS = new Set(['top', 'second', 'match', 'people', 'numbers', 'attention', 'pressure', 'source', 'action', 'tried', 'returning', 'duration', 'avatar']);
+const DATA_KEYS = new Set(['top', 'second', 'match', 'people', 'numbers', 'attention', 'pressure', 'tech', 'source', 'action', 'tried', 'returning', 'duration', 'avatar']);
 const ID = /^[a-z0-9-]{8,40}$/i;
 
 let pool = null;

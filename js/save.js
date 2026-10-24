@@ -4,7 +4,7 @@
 const SAVE_KEY = 'bankjobs.save.v3';
 const SETTINGS_KEY = 'rubezh.settings.v1';
 
-const PROF_IDS = ['teller', 'credit', 'advisor', 'cash', 'security'];
+const PROF_IDS = ['teller', 'credit', 'advisor', 'cash', 'security', 'hr', 'devops'];
 
 export function newProfState() {
   return { shift: 1, stage: 0, unlocked: 1, best: {}, pending: null, data: {} };

@@ -15,9 +15,9 @@ from datetime import datetime, timedelta, timezone
 
 import psycopg2
 
-PROFS = ["teller", "credit", "advisor", "cash", "security"]
+PROFS = ["teller", "credit", "advisor", "cash", "security", "hr", "devops"]
 # демо-предпочтения: какие профессии чаще пробуют и как они «заходят»
-APPEAL = {"teller": 0.75, "credit": 0.6, "advisor": 0.7, "cash": 0.8, "security": 0.9}
+APPEAL = {"teller": 0.75, "credit": 0.6, "advisor": 0.7, "cash": 0.8, "security": 0.9, "hr": 0.65, "devops": 0.85}
 AGES = [("7-10", 0.2), ("11-13", 0.45), ("14+", 0.35)]
 DEVICES = [("mobile", 0.62), ("desktop", 0.33), ("tablet", 0.05)]
 
@@ -88,7 +88,7 @@ def main():
         if n_try == 5:
             top = max(PROFS, key=lambda p: likes.get(p, 2) + APPEAL[p] + random.random())
             second = random.choice([p for p in PROFS if p != top])
-            tr = {k: round(random.uniform(0.35, 0.95), 3) for k in ("people", "numbers", "attention", "pressure")}
+            tr = {k: round(random.uniform(0.35, 0.95), 3) for k in ("people", "numbers", "attention", "pressure", "tech")}
             ev("profile_ready", prof=top, value=random.randint(72, 96), data={"second": second, "tried": 5, **tr})
             ev("profile_open", prof=top, data={"source": "auto", "tried": 5})
             if random.random() < 0.3:

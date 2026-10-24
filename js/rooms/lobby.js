@@ -1,4 +1,5 @@
-// Холл банка: двери кабинетов пяти профессий, терминал очереди, табло, банкоматы и посетители.
+// Холл банка: двери кабинетов всех профессий, терминал очереди, табло, банкоматы и посетители.
+// Холл вытянут вглубь: у входа — клиентская зона, дальше — двери HR и DevOps, в самом конце — операционный зал и безопасность.
 import * as THREE from 'three';
 import { createKit, makeRoom, roundRect, text, SANS, MONO } from './kit.js';
 import { PROFESSIONS } from '../data/professions.js';
@@ -27,23 +28,31 @@ const SKY = {
 };
 
 // Где стоит дверь каждой профессии: [x, z, поворот]
+// Вход — у z = +8, дальняя стена — у z = −14 (холл расширили для двух новых кабинетов)
+const FRONT = 8;
+const BACK = -14;
+const SHIFT = BACK + 8; // насколько дальняя зона сдвинулась назад
 const DOORS = {
   teller: [-9, 2.2, Math.PI / 2],
   cash: [-9, -4, Math.PI / 2],
+  hr: [-9, -9.6, Math.PI / 2],
   credit: [9, 2.2, -Math.PI / 2],
   advisor: [9, -4, -Math.PI / 2],
-  security: [0, -8, 0],
+  devops: [9, -9.6, -Math.PI / 2],
+  security: [0, BACK, 0],
 };
 
 export function buildLobby(world) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xcfe6f7);
   const room = makeRoom(scene, {
-    bounds: { minX: -8.3, maxX: 8.3, minZ: -7.3, maxZ: 7.3 },
+    bounds: { minX: -8.3, maxX: 8.3, minZ: BACK + 0.7, maxZ: 7.3 },
     obstacles: [
       [-0.7, 0.7, 2.0, 3.2],
       [-4.9, -4.1, -3.4, -2.6],
       [4.1, 4.9, -3.4, -2.6],
+      [-4.9, -4.1, -9.4, -8.6],
+      [4.1, 4.9, -9.4, -8.6],
       [-4.9, -4.1, 2.6, 3.4],
       [4.1, 4.9, 2.6, 3.4],
       [-6.3, -3.7, 4.6, 6.0],
@@ -55,7 +64,8 @@ export function buildLobby(world) {
   });
   const k = createKit(world, scene, room.interactables);
   const W = 18;
-  const D = 16;
+  const D = FRONT - BACK;
+  const CZ = (FRONT + BACK) / 2;
   const H = 5;
 
   // Мраморный пол с зелёной дорожкой
@@ -78,9 +88,9 @@ export function buildLobby(world) {
     }
   });
   floorCv.tex.wrapS = floorCv.tex.wrapT = THREE.RepeatWrapping;
-  floorCv.tex.repeat.set(4.5, 4);
-  k.shell({ w: W, d: D, h: H, floorTex: floorCv.tex, floor: 0xffffff, wall: 0xe4ded3 });
-  const path = k.plane(2.2, 14, k.M(0x1f7a4d, { roughness: 0.5 }), 0, 0.005, 0.5);
+  floorCv.tex.repeat.set(4.5, 4 * (D / 16));
+  k.shell({ w: W, d: D, h: H, floorTex: floorCv.tex, floor: 0xffffff, wall: 0xe4ded3, cz: CZ });
+  const path = k.plane(2.2, FRONT - BACK - 2, k.M(0x1f7a4d, { roughness: 0.5 }), 0, 0.005, CZ + 0.5);
   path.rotation.x = -Math.PI / 2;
   // круг у терминала выше дорожки: при зазоре в 1 мм он мерцал на телефонах
   const ring = k.plane(5.5, 5.5, new THREE.MeshBasicMaterial({ color: 0x1f7a4d, transparent: true, opacity: 0.18, depthWrite: false }), 0, 0.02, 2.6);
@@ -88,13 +98,13 @@ export function buildLobby(world) {
 
   // Зелёная полоса по стенам
   const band = k.M(0x1f7a4d, { roughness: 0.6 });
-  k.box(W, 0.35, 0.04, band, 0, 4.3, -D / 2 + 0.03);
-  k.box(0.04, 0.35, D, band, -W / 2 + 0.03, 4.3, 0);
-  k.box(0.04, 0.35, D, band, W / 2 - 0.03, 4.3, 0);
+  k.box(W, 0.35, 0.04, band, 0, 4.3, BACK + 0.03);
+  k.box(0.04, 0.35, D, band, -W / 2 + 0.03, 4.3, CZ);
+  k.box(0.04, 0.35, D, band, W / 2 - 0.03, 4.3, CZ);
 
   // Потолочные светильники
   const lamp = k.glow(0xffffff, 1.1);
-  for (const x of [-5, 0, 5]) for (const z of [-4, 0, 4]) {
+  for (const x of [-5, 0, 5]) for (const z of [-12, -8, -4, 0, 4]) {
     const p = k.plane(1.6, 0.5, lamp, x, H - 0.01, z);
     p.rotation.x = Math.PI / 2;
   }
@@ -135,22 +145,24 @@ export function buildLobby(world) {
     }
   };
   const sky = k.canvas(1024, 256, drawSky);
-  k.plane(16, 3.6, new THREE.MeshBasicMaterial({ map: sky.tex, toneMapped: false }), 0, 2.2, D / 2 - 0.02, Math.PI);
+  k.plane(16, 3.6, new THREE.MeshBasicMaterial({ map: sky.tex, toneMapped: false }), 0, 2.2, FRONT - 0.02, Math.PI);
   const frame = k.M(0x2b2f36, { metalness: 0.5, roughness: 0.4 });
-  for (let x = -8; x <= 8; x += 2) k.box(0.08, 3.6, 0.08, frame, x, 2.2, D / 2 - 0.05);
-  k.box(16, 0.1, 0.1, frame, 0, 4.0, D / 2 - 0.05);
-  k.box(16, 0.1, 0.1, frame, 0, 0.4, D / 2 - 0.05);
+  for (let x = -8; x <= 8; x += 2) k.box(0.08, 3.6, 0.08, frame, x, 2.2, FRONT - 0.05);
+  k.box(16, 0.1, 0.1, frame, 0, 4.0, FRONT - 0.05);
+  k.box(16, 0.1, 0.1, frame, 0, 0.4, FRONT - 0.05);
 
   // Колонны и растения
   const col = k.M(0xf7f5f0, { roughness: 0.4 });
-  for (const [x, z] of [[-4.5, -3], [4.5, -3], [-4.5, 3], [4.5, 3]]) {
+  for (const [x, z] of [[-4.5, -9], [4.5, -9], [-4.5, -3], [4.5, -3], [-4.5, 3], [4.5, 3]]) {
     k.cyl(0.32, 0.32, H, col, x, H / 2, z);
     k.cyl(0.42, 0.42, 0.12, k.M(0x1f7a4d), x, 0.06, z);
   }
   k.plant(-7.6, 7.2);
   k.plant(7.6, 7.2);
-  k.plant(-7.6, -7.2, null, 1.2);
-  k.plant(7.6, -7.2, null, 1.2);
+  k.plant(-7.6, BACK + 0.8, null, 1.2);
+  k.plant(7.6, BACK + 0.8, null, 1.2);
+  k.plant(-7.7, -6.9, null, 1.0);
+  k.plant(7.7, -6.9, null, 1.0);
 
   // Зона ожидания: диваны и посетители
   const sofaM = k.M(0x2f6f9a, { roughness: 0.9 });
@@ -179,7 +191,10 @@ export function buildLobby(world) {
     ctx.fillRect(0, 0, w, h);
     text(ctx, 'ЭЛЕКТРОННАЯ', w / 2, 60, { size: 40, align: 'center', color: '#7dffc0' });
     text(ctx, 'ОЧЕРЕДЬ', w / 2, 108, { size: 40, align: 'center', color: '#7dffc0' });
-    text(ctx, PROFESSIONS.map((p) => p.icon).join(' '), w / 2, 200, { size: 54, align: 'center' });
+    const icons = PROFESSIONS.map((p) => p.icon);
+    const half = Math.ceil(icons.length / 2);
+    text(ctx, icons.slice(0, half).join(' '), w / 2, 172, { size: 44, align: 'center' });
+    text(ctx, icons.slice(half).join(' '), w / 2, 228, { size: 44, align: 'center' });
     roundRect(ctx, 70, 270, w - 140, 84, 18);
     ctx.fillStyle = '#3ddc84';
     ctx.fill();
@@ -211,10 +226,12 @@ export function buildLobby(world) {
     const o = drawBrand(ctx, 0, 0, w, 104, { radius: 0, pad: 0.15 }) ? 1 : 0;
     text(ctx, 'НЕДЕЛЯ', w / 2, 70 + o * 80, { size: 46, align: 'center', color: '#ffffff' });
     text(ctx, 'СТАЖЁРА', w / 2, 122 + o * 80, { size: 46, align: 'center', color: '#7dffc0' });
-    text(ctx, '5 кабинетов', w / 2, 210 + o * 62, { size: 30, align: 'center', color: '#e3f6ec', weight: 700 });
-    text(ctx, '25 смен', w / 2, 252 + o * 56, { size: 30, align: 'center', color: '#e3f6ec', weight: 700 });
-    text(ctx, PROFESSIONS.map((p) => p.icon).slice(0, 3).join(' '), w / 2, 340 + o * 40, { size: 50, align: 'center' });
-    text(ctx, PROFESSIONS.map((p) => p.icon).slice(3).join(' '), w / 2, 410 + o * 30, { size: 50, align: 'center' });
+    text(ctx, `${PROFESSIONS.length} кабинетов`, w / 2, 210 + o * 62, { size: 30, align: 'center', color: '#e3f6ec', weight: 700 });
+    text(ctx, `${PROFESSIONS.length * 5} смен`, w / 2, 252 + o * 56, { size: 30, align: 'center', color: '#e3f6ec', weight: 700 });
+    const ic = PROFESSIONS.map((p) => p.icon);
+    const hf = Math.ceil(ic.length / 2);
+    text(ctx, ic.slice(0, hf).join(' '), w / 2, 340 + o * 40, { size: ic.length > 6 ? 40 : 50, align: 'center' });
+    text(ctx, ic.slice(hf).join(' '), w / 2, 410 + o * 30, { size: ic.length > 6 ? 40 : 50, align: 'center' });
     roundRect(ctx, 30, 500, w - 60, 120, 18);
     ctx.fillStyle = '#ffd166';
     ctx.fill();
@@ -237,7 +254,7 @@ export function buildLobby(world) {
   // Табло над входом в центр безопасности
   let ticket = 17;
   let shown = 0;
-  const board = k.sign(5.2, 0.95, 1200, 220, () => {}, 0, 4.32, -D / 2 + 0.06);
+  const board = k.sign(5.2, 0.95, 1200, 220, () => {}, 0, 4.32, BACK + 0.06);
   const drawBoard = () => {
     const prof = PROFESSIONS[shown % PROFESSIONS.length];
     board.userData.canvas.redraw((ctx, w, h) => {
@@ -280,14 +297,14 @@ export function buildLobby(world) {
     k.person({ shirt: [0x1f5a3d, 0x2a6f8f, 0x6b3f5e][i], hair: [0x2b1d1a, 0xb5651d, 0x1d1d1d][i], sit: true }, x, -0.75, 0, tellerZone);
   }
   k.box(0.06, 1.2, 0.06, darkM, 3.38, 1.7, 0.2, tellerZone);
-  tellerZone.position.set(-5.0, 0, -6.7);
+  tellerZone.position.set(-5.0, 0, -6.7 + SHIFT);
   scene.add(tellerZone);
   k.reg('tellers', tellerZone, 'Операционный зал');
   room.captions.tellers = 'Операционный зал. Здесь платят, переводят и снимают деньги. Хочешь за стекло? Дверь «Операционист» слева 🧾';
   // клиенты у окон
-  const atWindows = [k.person({ shirt: 0xe76f51, hair: 0x3b2a20 }, -7.3, -5.65, Math.PI), k.person({ shirt: 0x577590, hair: 0xc9ccd3 }, -2.7, -5.65, Math.PI)];
+  const atWindows = [k.person({ shirt: 0xe76f51, hair: 0x3b2a20 }, -7.3, -5.65 + SHIFT, Math.PI), k.person({ shirt: 0x577590, hair: 0xc9ccd3 }, -2.7, -5.65 + SHIFT, Math.PI)];
   // табло электронной очереди над окнами
-  const queueBoard = k.sign(3.4, 0.6, 900, 160, () => {}, -5.0, 3.0, -7.95);
+  const queueBoard = k.sign(3.4, 0.6, 900, 160, () => {}, -5.0, 3.0, BACK + 0.05);
   // Большой логотип банка над окнами — световой короб, как в настоящем отделении (видно сразу от входа).
   // Светлая плашка — ниже порога свечения, чтобы зелёный логотип не «засвечивало».
   const fascia = new THREE.Group();
@@ -298,7 +315,7 @@ export function buildLobby(world) {
   const wallLogo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false, depthWrite: false }));
   wallLogo.position.z = 0.045;
   fascia.add(wallLogo);
-  fascia.position.set(-5.0, 3.87, -D / 2 + 0.08);
+  fascia.position.set(-5.0, 3.87, BACK + 0.08);
   fascia.visible = false;
   scene.add(fascia);
   onBrand(() => {
@@ -338,7 +355,7 @@ export function buildLobby(world) {
     k.box(0.5, 0.45, 0.5, k.M(0x2f6f9a, { roughness: 0.9 }), x, 0.22, 0.85, deskZone);
   }
   k.plane(0.05, 1.2, glass, 0, 1.2, 0, Math.PI / 2, deskZone);
-  deskZone.position.set(5.2, 0, -6.4);
+  deskZone.position.set(5.2, 0, -6.4 + SHIFT);
   scene.add(deskZone);
   k.reg('desks', deskZone, 'Консультации');
   room.captions.desks = 'Столы консультантов: вклады и кредиты. Похоже на кабинеты «Кредитный эксперт» и «Финансовый консультант» справа 📝📈';
@@ -346,7 +363,7 @@ export function buildLobby(world) {
     ctx.fillStyle = '#0b1a14';
     ctx.fillRect(0, 0, w, h);
     text(ctx, 'КОНСУЛЬТАЦИИ · ВКЛАДЫ · КРЕДИТЫ', w / 2, h / 2, { size: 50, align: 'center', color: '#7dffc0' });
-  }, 5.2, 3.15, -7.95);
+  }, 5.2, 3.15, BACK + 0.05);
 
   // Зона 24/7: банкоматы и табло курсов у входа
   for (const z of [4.9, 6.2]) {
@@ -419,7 +436,7 @@ export function buildLobby(world) {
   room.captions.clock = () => `Сейчас ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}. Отделение работает, пока ты учишься 🙂`;
 
   // Бегущая строка над консультациями: курсы ЦБ, советы по финансовой грамотности, имя стажёра
-  const ticker = k.sign(3.6, 0.34, 4096, 96, () => {}, 5.2, 3.72, -7.96);
+  const ticker = k.sign(3.6, 0.34, 4096, 96, () => {}, 5.2, 3.72, BACK + 0.04);
   const tickerTex = ticker.userData.canvas.tex;
   tickerTex.wrapS = THREE.RepeatWrapping;
   tickerTex.repeat.set(0.25, 1);
@@ -569,7 +586,7 @@ export function buildLobby(world) {
   k.reg('career', career, 'Карьерный стенд');
   room.markers.career = [8.6, 3.1, -0.9, 1.0];
   room.focus.career = { pos: [5.9, 1.65, -0.9], look: [8.9, 1.95, -0.9] };
-  let careerState = { tried: [], ready: false, top: null };
+  let careerState = { tried: [], ready: false, top: null, need: Math.min(5, PROFESSIONS.length) };
   const drawCareer = (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, '#11452e');
@@ -580,35 +597,37 @@ export function buildLobby(world) {
     const band = drawBrand(ctx, 0, 0, w, 96, { radius: 0, pad: 0.16 });
     text(ctx, 'КАРЬЕРА В БАНКЕ', 36, band ? 132 : 56, { size: 38, color: '#7dffc0' });
     text(ctx, 'профиль стажёра', w - 36, band ? 134 : 58, { size: 28, color: '#e3f6ec', weight: 700, align: 'right' });
-    const { tried, ready, top } = careerState;
+    const { tried, ready, top, need } = careerState;
     if (ready && top) {
       text(ctx, 'Тебе подходит:', w / 2, 184, { size: 28, align: 'center', color: '#cfe9dc', weight: 700 });
       fitText(ctx, `${top.icon} ${top.title}`, w / 2, 228, w - 60, { size: 42, align: 'center', color: top.color });
     } else text(ctx, 'Какая профессия — твоя?', w / 2, 205, { size: 38, align: 'center' });
+    const step = (w - 60) / PROFESSIONS.length;
+    const rad = Math.min(44, step / 2 - 6);
     PROFESSIONS.forEach((p, i) => {
-      const x = 115 + i * 130;
+      const x = 30 + step * (i + 0.5);
       const on = tried.includes(p.id);
       ctx.beginPath();
-      ctx.arc(x, 318, 44, 0, Math.PI * 2);
+      ctx.arc(x, 318, rad, 0, Math.PI * 2);
       ctx.fillStyle = on ? p.color : 'rgba(255,255,255,0.08)';
       ctx.fill();
       ctx.globalAlpha = on ? 1 : 0.45;
-      text(ctx, p.icon, x, 318, { size: 44, align: 'center' });
+      text(ctx, p.icon, x, 318, { size: Math.round(rad * 0.95), align: 'center' });
       ctx.globalAlpha = 1;
       if (on) {
         ctx.beginPath();
-        ctx.arc(x + 33, 285, 16, 0, Math.PI * 2);
+        ctx.arc(x + rad * 0.72, 318 - rad * 0.72, 15, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
-        text(ctx, '✓', x + 33, 286, { size: 22, align: 'center', color: '#1f7a4d' });
+        text(ctx, '✓', x + rad * 0.72, 319 - rad * 0.72, { size: 20, align: 'center', color: '#1f7a4d' });
       }
     });
-    text(ctx, ready ? '✓ Профиль готов — открой его' : `Попробовано ${tried.length} из 5 — сыграй в каждом кабинете`, w / 2, 414, { size: ready ? 32 : 28, align: 'center', color: ready ? '#ffd166' : '#cfe9dc', weight: 700 });
+    text(ctx, ready ? '✓ Профиль готов — открой его' : `Попробовано ${Math.min(tried.length, need)} из ${need} — сыграй в разных кабинетах`, w / 2, 414, { size: ready ? 32 : 28, align: 'center', color: ready ? '#ffd166' : '#cfe9dc', weight: 700 });
   };
   career.userData.canvas.redraw(drawCareer);
   onBrand(() => career.userData.canvas.redraw(drawCareer));
   room.setCareer = (cp) => {
-    careerState = { tried: cp.tried, ready: cp.ready, top: cp.ready ? cp.top.prof : null };
+    careerState = { tried: cp.tried, ready: cp.ready, top: cp.ready ? cp.top.prof : null, need: cp.need };
     career.userData.canvas.redraw(drawCareer);
   };
 
@@ -663,7 +682,7 @@ export function buildLobby(world) {
     k.reg(`guest_${id}`, obj, { gran: 'Валентина Петровна', misha: 'Миша', maxim: 'Максим', artyom: 'Артём', croissants: 'Круассаны' }[id]);
     show(obj, false);
   }
-  room.obstacles.push([-8.6, -1.5, -7.4, -5.9], [3.1, 7.4, -7.6, -5.4], [-9, -7.9, 4.3, 6.8], [7.0, 7.8, 5.4, 6.4], [-7.9, -7.3, 3.3, 3.9], [2.1, 2.7, 6.7, 7.3], [-2.7, -1.5, 5.6, 6.3], [5.9, 6.5, 1.1, 1.7]);
+  room.obstacles.push([-8.0, -7.4, -7.2, -6.6], [7.4, 8.0, -7.2, -6.6], [-8.6, -1.5, -7.4 + SHIFT, -5.9 + SHIFT], [3.1, 7.4, -7.6 + SHIFT, -5.4 + SHIFT], [-9, -7.9, 4.3, 6.8], [7.0, 7.8, 5.4, 6.4], [-7.9, -7.3, 3.3, 3.9], [2.1, 2.7, 6.7, 7.3], [-2.7, -1.5, 5.6, 6.3], [5.9, 6.5, 1.1, 1.7]);
 
   // Сюжет меняет холл: гости, записки, круассаны
   room.setStory = (state) => {
@@ -680,6 +699,31 @@ export function buildLobby(world) {
     }
   };
 
+  // Указатель под потолком: дальше по холлу — офис банка (HR и DevOps), операционный зал и безопасность
+  const drawWay = (back) => (ctx, w, h) => {
+    ctx.fillStyle = '#0b1a14';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(6, 6, w - 12, h - 12);
+    const hr = PROFESSIONS.find((p) => p.id === 'hr');
+    const dv = PROFESSIONS.find((p) => p.id === 'devops');
+    if (back) {
+      fitText(ctx, '↓ Холл · выход', w / 2 - 300, h / 2, 600, { size: 54, align: 'left', color: '#e3f6ec' });
+      return;
+    }
+    if (hr) fitText(ctx, `← ${hr.icon} ${hr.title}`, 30, h / 2, w / 2 - 60, { size: 54, color: hr.color });
+    if (dv) fitText(ctx, `${dv.icon} ${dv.title} →`, w - 30, h / 2, w / 2 - 60, { size: 54, color: dv.color, align: 'right' });
+  };
+  const way = new THREE.Group();
+  k.box(4.6, 0.62, 0.06, k.M(0x2b2f36, { metalness: 0.5 }), 0, 0, 0, way);
+  k.sign(4.5, 0.55, 1600, 196, drawWay(false), 0, 0, 0.035, 0, way);
+  k.sign(4.5, 0.55, 1600, 196, drawWay(true), 0, 0, -0.035, Math.PI, way);
+  for (const x of [-1.8, 1.8]) k.box(0.02, 0.5, 0.02, k.M(0x9aa3ad, { metalness: 0.8 }), x, 0.56, 0, way);
+  way.position.set(0, 4.25, -6.6);
+  scene.add(way);
+  k.reg('way', way, 'Указатель');
+  room.captions.way = 'Дальше по холлу — офис банка: HR-специалист слева, DevOps-инженер справа. Клиенты их не видят, но без них банк не работает 🤝⚙️';
   // Двери кабинетов
   const doorPlates = {};
   for (const prof of PROFESSIONS) {
@@ -690,7 +734,7 @@ export function buildLobby(world) {
     k.box(0.14, 2.9, 0.18, frameM, -0.85, 1.45, 0, g);
     k.box(0.14, 2.9, 0.18, frameM, 0.85, 1.45, 0, g);
     k.box(1.84, 0.16, 0.18, frameM, 0, 2.95, 0, g);
-    const panelM = prof.id === 'cash' ? k.M(0x8a939e, { metalness: 0.8, roughness: 0.35 }) : prof.id === 'security' ? k.M(0x1c232b, { roughness: 0.4 }) : k.M(color.clone().multiplyScalar(0.35).add(new THREE.Color(0x2a2a2a)), { roughness: 0.5 });
+    const panelM = prof.id === 'cash' ? k.M(0x9aa3ae, { metalness: 0.45, roughness: 0.6 }) : prof.id === 'security' ? k.M(0x1c232b, { roughness: 0.4 }) : k.M(color.clone().multiplyScalar(0.35).add(new THREE.Color(0x2a2a2a)), { roughness: 0.5 });
     // полотно чуть впереди стены: в одной плоскости со стеной оно мерцало (z-fighting)
     k.box(1.56, 2.8, 0.06, panelM, 0, 1.4, 0.04, g);
     k.box(0.06, 0.3, 0.06, k.M(0xd9d9d9, { metalness: 0.9, roughness: 0.2 }), 0.6, 1.25, 0.1, g);
@@ -698,7 +742,7 @@ export function buildLobby(world) {
     k.box(0.04, 2.8, 0.04, strip, -0.77, 1.45, 0.12, g);
     k.box(0.04, 2.8, 0.04, strip, 0.77, 1.45, 0.12, g);
     k.box(1.58, 0.04, 0.04, strip, 0, 2.86, 0.12, g);
-    if (prof.id === 'cash') k.cyl(0.38, 0.38, 0.06, k.M(0x6c757d, { metalness: 0.9, roughness: 0.3 }), 0, 1.5, 0.1, g).rotation.x = Math.PI / 2;
+    if (prof.id === 'cash') k.cyl(0.38, 0.38, 0.06, k.M(0x7d868f, { metalness: 0.6, roughness: 0.45 }), 0, 1.5, 0.1, g).rotation.x = Math.PI / 2;
     const plate = k.sign(2.2, 0.62, 640, 180, () => {}, 0, 3.45, 0.05, 0, g);
     doorPlates[prof.id] = { plate, prof };
     const floorRing = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.7, 40), new THREE.MeshBasicMaterial({ color: prof.color, transparent: true, opacity: 0.6, toneMapped: false }));
@@ -706,9 +750,12 @@ export function buildLobby(world) {
     floorRing.position.set(0, 0.012, 1.0);
     g.add(floorRing);
     g.userData.ring = floorRing;
-    const light = new THREE.PointLight(prof.color, 2.2, 4.5, 2);
-    light.position.set(0, 2.4, 0.9);
-    g.add(light);
+    // цветная подсветка у двери — только на высокой графике: на телефоне каждый источник света дорог
+    if (world.quality === 'high') {
+      const light = new THREE.PointLight(prof.color, 2.2, 4.5, 2);
+      light.position.set(0, 2.4, 0.9);
+      g.add(light);
+    }
     g.position.set(x, 0, z);
     g.rotation.y = ry;
     scene.add(g);
@@ -739,11 +786,11 @@ export function buildLobby(world) {
   for (const p of PROFESSIONS) room.setProgress(p.id);
 
   // Свет
-  scene.add(new THREE.HemisphereLight(0xeaf4ff, 0x9f937c, 1.05));
+  scene.add(new THREE.HemisphereLight(0xeaf4ff, 0x9f937c, 1.12));
   const sun = new THREE.DirectionalLight(0xfff2dc, 1.2);
   sun.position.set(2, 6, 10);
   scene.add(sun);
-  for (const [x, z] of [[0, 0], [-5, -4], [5, -4]]) {
+  for (const [x, z] of [[0, 0], [-5, -7], [5, -7]]) {
     const l = new THREE.PointLight(0xfff6ea, 3.5, 12, 2);
     l.position.set(x, 4.5, z);
     scene.add(l);
