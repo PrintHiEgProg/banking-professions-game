@@ -1,0 +1,13 @@
+{
+  "name": "professii-v-banke-tests",
+  "private": true,
+  "type": "module",
+  "description": "Автотесты: Playwright сам играет в смены и ловит ошибки",
+  "scripts": {
+    "smoke": "node smoke.mjs",
+    "firsts": "node firsts.mjs normal good",
+    "advisor": "node advisor.mjs 1 normal good",
+    "cash": "node cash.mjs 1 normal good"
+  },
+  "dependencies": { "playwright": "^1.47.0" }
+}

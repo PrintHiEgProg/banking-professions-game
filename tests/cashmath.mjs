@@ -1,0 +1,23 @@
+import { CASH_SHIFTS, schedule, pointsFor, fmt, sameAsYesterday } from '../js/data/cash.js';
+const show = (n, diff, order) => {
+  const cfg = CASH_SHIFTS[n];
+  const pts = pointsFor(cfg, diff);
+  const r = schedule(cfg, order, pts);
+  console.log(`#${n} ${diff} [${order.join(',')}] back ${fmt(r.back)} km ${r.km} ${sameAsYesterday(cfg, order, pts) ? 'YESTERDAY' : ''}`);
+  for (const s of r.stops) console.log(`   ${s.id.padEnd(12)} arr ${fmt(s.arrive)} wait ${s.wait} late ${s.late} empty ${s.emptyFor}`);
+};
+show(1, 'normal', ['bakery', 'romashka', 'pharmacy', 'family']);
+show(1, 'normal', ['romashka', 'bakery', 'pharmacy', 'family']);
+show(1, 'easy', ['bakery', 'romashka', 'family']);
+show(2, 'normal', ['romashka', 'mall', 'pizza', 'gas']);
+show(2, 'normal', ['mall', 'romashka', 'pizza', 'gas']);
+show(2, 'normal', ['romashka', 'mall', 'gas', 'pizza']);
+show(3, 'normal', ['romashka', 'pharmacy', 'branch']);
+show(3, 'normal', ['pharmacy', 'branch', 'romashka']);
+show(4, 'normal', ['atm_mall', 'atm_station', 'family', 'atm_plant', 'atm_home']);
+show(4, 'normal', ['atm_home', 'atm_mall', 'atm_station', 'family', 'atm_plant']);
+show(4, 'easy', ['atm_mall', 'atm_station', 'atm_home']);
+show(5, 'normal', ['atm_mall', 'family', 'pizza', 'romashka']);
+show(5, 'normal', ['atm_mall', 'family', 'romashka', 'pizza']);
+show(5, 'normal', ['atm_mall', 'romashka', 'family', 'pizza']);
+show(5, 'easy', ['atm_mall', 'family', 'romashka']);

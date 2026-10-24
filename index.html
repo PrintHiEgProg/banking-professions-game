@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Профессии в Банке</title>
+  <meta name="description" content="3D-игра «Профессии в Банке»: операционист, кредитный эксперт, финансовый консультант, инкассатор и специалист по финансовой безопасности — по 5 смен в каждой.">
+  <meta name="theme-color" content="#050b09">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23050b09'/%3E%3Cpath d='M10 26 32 12l22 14Z' fill='%233ddc84'/%3E%3Cpath d='M17 30v18M27 30v18M37 30v18M47 30v18' stroke='%233ddc84' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M10 53h44' stroke='%233ddc84' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-label="3D-сцена: банк и кабинеты профессий"></canvas>
+  <div id="vignette"></div>
+  <div id="flash"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="objective"><span class="obj-label">Задача</span><span id="objective-text"></span></div>
+    <div id="stats">
+      <div class="stat"><span>Звёзды</span><b id="stat-clients">0</b></div>
+      <div class="stat"><span>Знания</span><b id="stat-money">0</b></div>
+      <div class="stat"><span>Очки</span><b id="stat-score">0</b></div>
+    </div>
+  </div>
+  <div id="hud-buttons" class="hidden">
+    <button id="btn-album" class="icon-btn" aria-label="Мои знания">📒</button>
+    <button id="btn-sound" class="icon-btn" aria-label="Звук">
+      <svg viewBox="0 0 24 24" class="ico-on"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-off"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <button id="btn-pause" class="icon-btn" aria-label="Пауза и меню">
+      <svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+    </button>
+  </div>
+  <button id="target-arrow" aria-label="Повернуться к цели"><svg viewBox="0 0 24 24"><path d="M5 12h12M12 6l6 6-6 6" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span></span></button>
+  <div id="save-badge" role="status">💾 Сохранено</div>
+  <div id="fade"></div>
+  <div id="hover-label"></div>
+  <div id="caption" role="status"></div>
+  <div id="controls-hint"></div>
+  <div id="joystick" aria-hidden="true"><div class="knob"></div></div>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="overlay-root"></div>
+
+  <!-- Титульный экран -->
+  <div id="title" class="screen">
+    <div class="title-inner">
+      <div class="logo">
+        <svg viewBox="0 0 64 64" class="logo-shield"><path d="M8 26 32 10l24 16" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M14 28v20M26 28v20M38 28v20M50 28v20" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M8 54h48" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+        <h1 class="logo-text" data-text="ПРОФЕССИИ">ПРОФЕССИИ<small>в&nbsp;Банке</small></h1>
+      </div>
+      <p class="pitch">Зайди в банк и попробуй 5 профессий — по 5 смен в каждой.</p>
+      <div id="prof-strip" class="prof-strip"></div>
+
+      <label class="field">
+        <span>Как тебя зовут?</span>
+        <input id="nick" maxlength="18" autocomplete="off" placeholder="Никнейм" spellcheck="false">
+      </label>
+
+      <div class="field">
+        <span>Сложность</span>
+        <div class="diffs" role="radiogroup">
+          <button class="diff-btn" data-diff="easy" role="radio"><b>Лёгкая</b><small>7–10 лет · подсказки</small></button>
+          <button class="diff-btn" data-diff="normal" role="radio"><b>Средняя</b><small>11–13 лет</small></button>
+          <button class="diff-btn" data-diff="hard" role="radio"><b>Сложная</b><small>14+ · без подсказок</small></button>
+        </div>
+      </div>
+
+      <div class="title-actions">
+        <button id="btn-continue" class="btn primary big hidden">▶ Продолжить <small id="continue-info"></small></button>
+        <button id="btn-start" class="btn primary big">🏦 Войти в банк</button>
+      </div>
+
+      <div class="title-links">
+        <button id="btn-howto" class="link-btn">Как играть</button>
+        <button id="btn-quality" class="link-btn">Графика: <span></span></button>
+        <button id="btn-sound-title" class="link-btn">Звук: <span></span></button>
+        <button id="btn-jury" class="link-btn" title="Для жюри и демонстрации: любую смену можно открыть сразу">Смены: <span></span></button>
+      </div>
+      <p class="title-foot">💾 Прогресс сохраняется автоматически · без регистрации</p>
+    </div>
+  </div>
+
+  <!-- Интро -->
+  <div id="intro" class="screen">
+    <div class="intro-text"></div>
+    <div class="intro-title"><span>ПРОФЕССИИ</span><small>в Банке</small></div>
+    <button class="intro-skip link-btn">Пропустить ▸</button>
+  </div>
+
+  <!-- Пауза -->
+  <div id="pause" class="screen hidden">
+    <div class="menu-card">
+      <h2>Пауза</h2>
+      <button id="p-resume" class="btn primary">Продолжить</button>
+      <button id="p-album" class="btn ghost">📒 Мои знания</button>
+      <button id="p-sound" class="btn ghost">Звук: <span></span></button>
+      <button id="p-quality" class="btn ghost">Графика: <span></span></button>
+      <button id="p-howto" class="btn ghost">Как играть</button>
+      <button id="p-lobby" class="btn ghost hidden">🏦 Выйти в холл банка</button>
+      <button id="p-menu" class="btn ghost">💾 Сохранить и выйти в меню</button>
+      <p id="p-saved" class="muted small"></p>
+    </div>
+  </div>
+
+  <!-- Как играть -->
+  <div id="howto" class="screen hidden">
+    <div class="menu-card wide">
+      <h2>Как играть</h2>
+      <div class="howto-grid">
+        <div><b>👀 Осмотреться</b><span>Зажми мышь · на телефоне — веди пальцем</span></div>
+        <div><b>🚶 Ходить</b><span>WASD / стрелки · джойстик слева внизу</span></div>
+        <div><b>👆 Действие</b><span>Клик или тап по предмету</span></div>
+        <div><b>🎯 Цель</b><span>Зелёная стрелка и задача слева вверху</span></div>
+        <div><b>🚪 Кабинеты</b><span>Подойди к двери или возьми талон в терминале</span></div>
+        <div><b>📒 Знания</b><span>Карточки, собранные за смены</span></div>
+        <div><b>💾 Сохранение</b><span>Автоматически после каждого шага</span></div>
+      </div>
+      <button id="howto-close" class="btn primary">Понятно</button>
+    </div>
+  </div>
+
+  <div id="loading" class="screen show">
+    <div class="loader"><i></i></div>
+    <p>Открываем банк…</p>
+  </div>
+  <noscript><div class="screen show"><p>Для игры нужен JavaScript.</p></div></noscript>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
