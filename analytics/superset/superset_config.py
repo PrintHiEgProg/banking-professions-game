@@ -10,9 +10,17 @@ SQLALCHEMY_DATABASE_URI = os.environ.get("SUPERSET_METADATA_URI", "sqlite:////ap
 BABEL_DEFAULT_LOCALE = "ru"
 LANGUAGES = {"ru": {"flag": "ru", "name": "Русский"}, "en": {"flag": "us", "name": "English"}}
 
-# Дашборд можно открыть без логина для просмотра (роль Public = Gamma), если задать SUPERSET_PUBLIC=1
+# Доступ к дашборду по ролям: дашборд, открытый роли Public, виден по ссылке без логина
+FEATURE_FLAGS = {"DASHBOARD_RBAC": True}
+
+# Публичный просмотр (для жюри по QR): SUPERSET_PUBLIC=1 + bootstrap.py --public.
+# Гость видит только опубликованные дашборды, которым выдана роль Public; править ничего не может.
 if os.environ.get("SUPERSET_PUBLIC") == "1":
     PUBLIC_ROLE_LIKE = "Gamma"
+
+# За обратным прокси с HTTPS (Caddy/nginx на своём домене)
+if os.environ.get("SUPERSET_PROXY_FIX") == "1":
+    ENABLE_PROXY_FIX = True
 
 ROW_LIMIT = 50000
 SQLLAB_TIMEOUT = 60

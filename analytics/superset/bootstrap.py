@@ -14,6 +14,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import uuid
 
@@ -49,13 +50,29 @@ class Superset:
     def __init__(self, base, user, password):
         self.base = base.rstrip("/")
         self.s = requests.Session()
+        # По HTTPS Superset (Flask-WTF) принимает форму только с Referer своего же адреса
+        self.s.headers["Referer"] = f"{self.base}/login/"
+        # Вход как в браузере (сессия): при публичном режиме Superset не читает API-токен у «публичных» запросов
+        # и считает скрипт гостем. Токен оставляем запасным путём (Superset с внешней авторизацией).
+        page = self.s.get(f"{self.base}/login/")
+        m = re.search(r'name="csrf_token"[^>]*value="([^"]+)"', page.text) or re.search(r'value="([^"]+)"[^>]*name="csrf_token"', page.text)
+        if m:
+            self.s.post(f"{self.base}/login/", data={"username": user, "password": password, "csrf_token": m.group(1)}, allow_redirects=True)
         r = self.s.post(f"{self.base}/api/v1/security/login", json={"username": user, "password": password, "provider": "db", "refresh": True})
+        if r.status_code == 401:
+            raise SystemExit(f"Superset: неверный логин или пароль для «{user}» (--user / --password).")
         r.raise_for_status()
         self.s.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
         r = self.s.get(f"{self.base}/api/v1/security/csrf_token/")
         r.raise_for_status()
         self.s.headers["X-CSRFToken"] = r.json()["result"]
         self.s.headers["Referer"] = self.base
+        me = self.s.get(f"{self.base}/api/v1/me/")
+        if me.status_code != 200:
+            raise RuntimeError(
+                f"Superset не пустил скрипт как {user} (ответ {me.status_code}). Проверь пароль; "
+                "если Superset за HTTPS-прокси — что в нём включён SUPERSET_PROXY_FIX=1."
+            )
 
     def call(self, method, path, **kw):
         r = self.s.request(method, f"{self.base}/api/v1/{path}", **kw)
@@ -157,6 +174,7 @@ def main():
     ap.add_argument("--password", default=os.environ.get("SUPERSET_PASSWORD", "admin"))
     ap.add_argument("--db", default=os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL"), help="адрес базы для этого скрипта")
     ap.add_argument("--superset-db", default=os.environ.get("SUPERSET_DATABASE_URL"), help="адрес базы, как его видит Superset (если отличается)")
+    ap.add_argument("--public", action="store_true", help="открыть дашборд по ссылке без логина (нужен SUPERSET_PUBLIC=1 в Superset)")
     a = ap.parse_args()
     if not a.db:
         sys.exit("Нужен адрес базы: --db или DATABASE_URL")
@@ -235,8 +253,18 @@ def main():
             made += 1
 
     meta = {"refresh_frequency": 60, "color_scheme": "supersetColors", "timed_refresh_immune_slices": [], "expanded_slices": {}, "label_colors": {}, "positions": pos, "native_filter_configuration": []}
-    ss.call("PUT", f"dashboard/{dash_id}", json={"position_json": json.dumps(pos), "json_metadata": json.dumps(meta)})
+    upd = {"position_json": json.dumps(pos), "json_metadata": json.dumps(meta)}
+    if a.public:
+        roles = ss.call("GET", "dashboard/related/roles?q=(page_size:100)").get("result", [])
+        pub = [r["value"] for r in roles if r.get("text") == "Public"]
+        if pub:
+            upd["roles"] = pub
+        else:
+            print("  (роль Public не найдена: запусти Superset с SUPERSET_PUBLIC=1 и выполни superset init)")
+    ss.call("PUT", f"dashboard/{dash_id}", json=upd)
     print(f"✓ Дашборд «{TITLE}»: {made} графиков → {a.superset.rstrip('/')}/superset/dashboard/{SLUG}/")
+    if a.public and upd.get("roles"):
+        print("✓ Открыт для просмотра без логина (роль Public)")
 
 
 if __name__ == "__main__":

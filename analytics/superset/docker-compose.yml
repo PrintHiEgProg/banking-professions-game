@@ -1,4 +1,5 @@
-# Superset для дашборда «Профессии в Банке — HR-аналитика».
+# Superset для дашборда «Профессии в Банке — HR-аналитика» — на своём компьютере.
+# На сервере со своим доменом и HTTPS — docker-compose.vps.yml (или setup-vps.sh).
 #   docker compose up -d        → http://localhost:8088  (логин admin / пароль из ADMIN_PASSWORD, по умолчанию admin — смени!)
 # Потом один раз: python bootstrap.py --superset http://localhost:8088 --db "$DATABASE_URL"
 services:
@@ -12,6 +13,7 @@ services:
       SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
       SUPERSET_METADATA_URI: sqlite:////app/superset_home/superset.db
       SUPERSET_PUBLIC: ${SUPERSET_PUBLIC:-0}
+      SUPERSET_PROXY_FIX: ${SUPERSET_PROXY_FIX:-0} # 1 — если открываешь через туннель/прокси с HTTPS
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
     volumes:
       - ./superset_config.py:/app/pythonpath/superset_config.py:ro

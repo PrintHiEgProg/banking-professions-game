@@ -1,0 +1,6 @@
+# Caddy сам получает и продлевает HTTPS-сертификат Let's Encrypt для домена из .env (DOMAIN).
+# Нужно: DNS-запись A «stats → IP сервера» и открытые порты 80 и 443.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy superset:8088
+}
