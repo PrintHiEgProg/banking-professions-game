@@ -1,0 +1,10 @@
+{
+  "name": "professii-v-banke",
+  "private": true,
+  "type": "module",
+  "description": "Профессии в Банке — 3D-игра о профессиях банка. Статический сайт + функция api/events (анонимная статистика → Postgres)",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}

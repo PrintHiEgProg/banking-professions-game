@@ -1,0 +1,26 @@
+// Игра на «боевом» домене (не localhost): статистика должна сама уходить в /api/events
+import { chromium } from 'playwright';
+import { dismissMentor } from './mentor.inc.mjs';
+const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--host-resolver-rules=MAP game.test 127.0.0.1'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const sent = [];
+page.on('request', (r) => { if (r.url().includes('/api/')) sent.push(`${r.method()} ${new URL(r.url()).pathname}`); });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+await page.goto('http://game.test:8790/index.html');
+await page.evaluate(() => { localStorage.clear(); localStorage.setItem('bank.notours', '1'); localStorage.setItem('rubezh.settings.v1', JSON.stringify({ quality: 'low', sound: false })); });
+await page.reload();
+await page.waitForFunction(() => !document.querySelector('#loading.show'), null, { timeout: 30000 });
+const anon = await page.evaluate(() => localStorage.getItem('bank.anon.v1'));
+await page.fill('#nick', 'Прод');
+await page.click('#btn-start');
+await page.waitForTimeout(400);
+await page.click('.intro-skip');
+await dismissMentor(page, null);
+await page.waitForTimeout(500);
+await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+await page.waitForTimeout(1500);
+console.log('anon', anon, '| requests', JSON.stringify([...new Set(sent)]));
+console.log(errors.join('\n') || 'NO ERRORS');
+await browser.close();

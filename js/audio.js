@@ -148,6 +148,11 @@ class AudioEngine {
     this.tone({ f: 330, type: 'sawtooth', dur: 0.55, vol: 0.09, slide: 160, lp: 900 });
     this.tone({ f: 247, type: 'sawtooth', dur: 0.7, vol: 0.08, slide: 110, lp: 700, at: 0.15 });
   }
+  // «Дин-дон» электронной очереди: тихо, на заднем плане
+  chime() {
+    this.tone({ f: 659, type: 'sine', dur: 0.55, vol: 0.035, attack: 0.01 });
+    this.tone({ f: 523, type: 'sine', dur: 0.8, vol: 0.03, at: 0.32, attack: 0.01 });
+  }
   wrong() { this.tone({ f: 180, type: 'square', dur: 0.16, vol: 0.06, lp: 600 }); }
   stamp() {
     this.noise({ dur: 0.14, vol: 0.45, f: 500 });

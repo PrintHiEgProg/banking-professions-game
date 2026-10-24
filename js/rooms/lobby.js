@@ -1,9 +1,30 @@
 // Холл банка: двери кабинетов пяти профессий, терминал очереди, табло, банкоматы и посетители.
 import * as THREE from 'three';
-import { createKit, makeRoom, roundRect, text, SANS } from './kit.js';
+import { createKit, makeRoom, roundRect, text, SANS, MONO } from './kit.js';
 import { PROFESSIONS } from '../data/professions.js';
 import { thanksNotes, lobbyGuests } from '../story.js';
-import { onBrand, drawBrand } from '../brand.js';
+import { onBrand, drawBrand, brandLogo, BRAND } from '../brand.js';
+import { getRates, fmtRate, trend, rateDate, RATE_META, SPREAD } from '../rates.js';
+import { audio } from '../audio.js';
+
+// Подобрать размер шрифта, чтобы строка влезла по ширине
+function fitText(ctx, str, x, y, maxW, { size = 52, min = 26, weight = 800, color = '#fff', align = 'left', font = SANS } = {}) {
+  let s = size;
+  for (; s > min; s -= 2) {
+    ctx.font = `${weight} ${s}px ${font}`;
+    if (ctx.measureText(str).width <= maxW) break;
+  }
+  text(ctx, str, x, y, { size: s, weight, color, align, font });
+}
+
+// Небо за окнами — по настоящему времени суток у игрока
+const skyPhase = (h = new Date().getHours()) => (h >= 7 && h < 17 ? 'day' : h >= 17 && h < 21 ? 'evening' : h >= 5 && h < 7 ? 'dawn' : 'night');
+const SKY = {
+  day: { top: '#8cc4f2', bottom: '#e8f4ff', city: '#9fb4c8', clouds: 'rgba(255,255,255,0.8)', lights: 0 },
+  dawn: { top: '#6f86c6', bottom: '#ffd3b0', city: '#7c88a6', clouds: 'rgba(255,230,220,0.6)', lights: 0.15 },
+  evening: { top: '#3b4f8f', bottom: '#f3a36b', city: '#4d5470', clouds: 'rgba(255,190,160,0.55)', lights: 0.35 },
+  night: { top: '#0b1530', bottom: '#2a3d6b', city: '#1a2236', clouds: null, lights: 0.55 },
+};
 
 // Где стоит дверь каждой профессии: [x, z, поворот]
 const DOORS = {
@@ -79,20 +100,41 @@ export function buildLobby(world) {
   }
 
   // Входная стена: окна и стеклянные двери
-  const sky = k.canvas(1024, 256, (ctx, w, h) => {
+  const city = [];
+  for (let x = 0; x < 1024; x += 50 + Math.random() * 40) city.push([x, 60 + Math.random() * 110, 40 + Math.random() * 30]);
+  let phase = skyPhase();
+  const drawSky = (ctx, w, h) => {
+    const P = SKY[phase];
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, '#8cc4f2');
-    g.addColorStop(1, '#e8f4ff');
+    g.addColorStop(0, P.top);
+    g.addColorStop(1, P.bottom);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#9fb4c8';
-    for (let x = 0; x < w; x += 50 + Math.random() * 40) ctx.fillRect(x, h - 60 - Math.random() * 110, 40 + Math.random() * 30, 200);
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.beginPath();
-    ctx.ellipse(200, 60, 80, 22, 0, 0, Math.PI * 2);
-    ctx.ellipse(700, 40, 110, 26, 0, 0, Math.PI * 2);
-    ctx.fill();
-  });
+    if (phase === 'night') {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 40; i++) ctx.fillRect((i * 263) % w, (i * 97) % 120, 2, 2);
+      ctx.beginPath();
+      ctx.arc(820, 48, 22, 0, Math.PI * 2);
+      ctx.fillStyle = '#f4f1d0';
+      ctx.fill();
+    }
+    for (const [x, top, bw] of city) {
+      ctx.fillStyle = P.city;
+      ctx.fillRect(x, h - top, bw, 200);
+      if (P.lights) {
+        ctx.fillStyle = '#ffd27a';
+        for (let yy = h - top + 10; yy < h - 8; yy += 14) for (let xx = x + 5; xx < x + bw - 6; xx += 10) if (((xx * 7 + yy * 13) % 100) / 100 < P.lights) ctx.fillRect(xx, yy, 5, 7);
+      }
+    }
+    if (P.clouds) {
+      ctx.fillStyle = P.clouds;
+      ctx.beginPath();
+      ctx.ellipse(200, 60, 80, 22, 0, 0, Math.PI * 2);
+      ctx.ellipse(700, 40, 110, 26, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+  const sky = k.canvas(1024, 256, drawSky);
   k.plane(16, 3.6, new THREE.MeshBasicMaterial({ map: sky.tex, toneMapped: false }), 0, 2.2, D / 2 - 0.02, Math.PI);
   const frame = k.M(0x2b2f36, { metalness: 0.5, roughness: 0.4 });
   for (let x = -8; x <= 8; x += 2) k.box(0.08, 3.6, 0.08, frame, x, 2.2, D / 2 - 0.05);
@@ -165,8 +207,8 @@ export function buildLobby(world) {
     g.addColorStop(1, '#0b2a1d');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
-    // с логотипом банка всё сдвигается вниз, чтобы освободить место под плашку
-    const o = drawBrand(ctx, 30, 22, w - 60, 86) ? 1 : 0;
+    // сверху — светлая полоса с логотипом банка, как у настоящих ролл-апов
+    const o = drawBrand(ctx, 0, 0, w, 104, { radius: 0, pad: 0.15 }) ? 1 : 0;
     text(ctx, 'НЕДЕЛЯ', w / 2, 70 + o * 80, { size: 46, align: 'center', color: '#ffffff' });
     text(ctx, 'СТАЖЁРА', w / 2, 122 + o * 80, { size: 46, align: 'center', color: '#7dffc0' });
     text(ctx, '5 кабинетов', w / 2, 210 + o * 62, { size: 30, align: 'center', color: '#e3f6ec', weight: 700 });
@@ -201,11 +243,10 @@ export function buildLobby(world) {
     board.userData.canvas.redraw((ctx, w, h) => {
       ctx.fillStyle = '#0b1a14';
       ctx.fillRect(0, 0, w, h);
-      const lx = drawBrand(ctx, 34, 16, 250, 92) ? 310 : 40;
+      const lx = drawBrand(ctx, 22, 16, 188, 188, { kind: 'emblem', pad: 0.13 }) ? 236 : 40;
       text(ctx, 'ПРОФЕССИИ В БАНКЕ', lx, 62, { size: 58, color: '#7dffc0' });
-      text(ctx, `Талон А-0${ticket}`, 40, 158, { size: 52, color: '#ffffff' });
-      const dest = `→ ${prof.icon} ${prof.title}`;
-      text(ctx, dest, 470, 158, { size: dest.length > 20 ? 42 : 52, color: prof.color });
+      text(ctx, `Талон А-0${ticket}`, lx, 158, { size: 52, color: '#ffffff' });
+      fitText(ctx, `→ ${prof.icon} ${prof.title}`, lx + 340, 158, w - lx - 360, { size: 52, color: prof.color });
     });
   };
   drawBoard();
@@ -246,7 +287,33 @@ export function buildLobby(world) {
   // клиенты у окон
   const atWindows = [k.person({ shirt: 0xe76f51, hair: 0x3b2a20 }, -7.3, -5.65, Math.PI), k.person({ shirt: 0x577590, hair: 0xc9ccd3 }, -2.7, -5.65, Math.PI)];
   // табло электронной очереди над окнами
-  const queueBoard = k.sign(3.4, 0.6, 900, 160, () => {}, -5.0, 3.15, -7.95);
+  const queueBoard = k.sign(3.4, 0.6, 900, 160, () => {}, -5.0, 3.0, -7.95);
+  // Большой логотип банка над окнами — световой короб, как в настоящем отделении (видно сразу от входа).
+  // Светлая плашка — ниже порога свечения, чтобы зелёный логотип не «засвечивало».
+  const fascia = new THREE.Group();
+  const FW = 3.9;
+  const FH = 0.86;
+  k.box(FW + 0.08, FH + 0.08, 0.04, k.M(0x1f7a4d, { roughness: 0.5 }), 0, 0, 0, fascia);
+  k.box(FW, FH, 0.04, new THREE.MeshBasicMaterial({ color: new THREE.Color(BRAND.plate), toneMapped: false }), 0, 0, 0.02, fascia);
+  const wallLogo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false, depthWrite: false }));
+  wallLogo.position.z = 0.045;
+  fascia.add(wallLogo);
+  fascia.position.set(-5.0, 3.87, -D / 2 + 0.08);
+  fascia.visible = false;
+  scene.add(fascia);
+  onBrand(() => {
+    const img = brandLogo('logo');
+    if (!img || fascia.visible) return;
+    const tex = new THREE.Texture(img);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = world.maxAniso || 4;
+    tex.needsUpdate = true;
+    wallLogo.material.map = tex;
+    wallLogo.material.needsUpdate = true;
+    const lh = 0.62;
+    wallLogo.scale.set(Math.min(FW - 0.3, (lh * img.naturalWidth) / img.naturalHeight), lh, 1);
+    fascia.visible = true;
+  });
   const drawQueue = (n) => queueBoard.userData.canvas.redraw((ctx, w, h) => {
     ctx.fillStyle = '#0b1a14';
     ctx.fillRect(0, 0, w, h);
@@ -288,8 +355,9 @@ export function buildLobby(world) {
     const drawAtm = (ctx, w, h) => {
       ctx.fillStyle = '#1f7a4d';
       ctx.fillRect(0, 0, w, h);
-      if (!drawBrand(ctx, 10, 22, w - 20, 72)) text(ctx, 'БАНК', w / 2, 60, { size: 36, align: 'center' });
-      text(ctx, '24/7', w / 2, 130, { size: 40, align: 'center', color: '#7dffc0' });
+      const em = drawBrand(ctx, 23, 14, w - 46, 128, { kind: 'emblem', pad: 0.12 });
+      if (!em) text(ctx, 'БАНК', w / 2, 60, { size: 36, align: 'center' });
+      text(ctx, '24/7', w / 2, em ? 190 : 130, { size: 44, align: 'center', color: '#7dffc0' });
     };
     const atmSign = k.sign(0.4, 0.6, 170, 256, drawAtm, 0.31, 1.45, 0, Math.PI / 2, atm);
     onBrand(() => atmSign.userData.canvas.redraw(drawAtm));
@@ -299,17 +367,119 @@ export function buildLobby(world) {
     k.reg(`atm${z}`, atm, 'Банкомат');
     room.captions[`atm${z}`] = 'Банкомат. Кто его заряжает деньгами? Инкассаторы — загляни в их гараж 🚚';
   }
-  k.sign(1.9, 1.1, 480, 280, (ctx, w, h) => {
+  // Табло курсов: официальные курсы ЦБ РФ на сегодня (js/rates.js), покупка и продажа — с маржой банка
+  let rates = null;
+  const drawRates = (ctx, w, h) => {
     ctx.fillStyle = '#0d1b2a';
     ctx.fillRect(0, 0, w, h);
-    text(ctx, 'КУРСЫ ВАЛЮТ', 24, 40, { size: 30, color: '#4cc9f0' });
-    text(ctx, 'покупка  продажа', 190, 90, { size: 22, color: '#8fb3a4', weight: 600 });
-    [['$', '89.20', '92.40'], ['€', '96.50', '99.80'], ['¥', '12.10', '12.90']].forEach(([c, b, s2], i) => {
-      text(ctx, c, 40, 140 + i * 50, { size: 38 });
-      text(ctx, b, 200, 140 + i * 50, { size: 34, color: '#7dffc0' });
-      text(ctx, s2, 340, 140 + i * 50, { size: 34, color: '#ffb3bb' });
+    text(ctx, 'КУРСЫ ВАЛЮТ', 26, 40, { size: 34, color: '#4cc9f0' });
+    if (rates) text(ctx, rates.live ? `ЦБ РФ · ${rateDate(rates)}` : 'примерные', w - 26, 42, { size: 24, align: 'right', color: rates.live ? '#ffd166' : '#8fb3a4', weight: 700 });
+    text(ctx, 'ЦБ', 250, 96, { size: 22, color: '#8fb3a4', weight: 700, align: 'right' });
+    text(ctx, 'покупка', 430, 96, { size: 22, color: '#8fb3a4', weight: 700, align: 'right' });
+    text(ctx, 'продажа', 610, 96, { size: 22, color: '#8fb3a4', weight: 700, align: 'right' });
+    ['USD', 'EUR', 'CNY'].forEach((c, i) => {
+      const y = 150 + i * 62;
+      text(ctx, RATE_META[c].sign, 44, y, { size: 42, align: 'center' });
+      text(ctx, c, 76, y + 2, { size: 20, color: '#8fb3a4', weight: 700 });
+      const r = rates?.rows[c];
+      if (!r) return;
+      text(ctx, fmtRate(r.value), 250, y, { size: 32, align: 'right', color: '#ffffff', font: MONO });
+      const tr = trend(r);
+      text(ctx, tr, 262, y, { size: 18, color: tr === '▲' ? '#7dffc0' : tr === '▼' ? '#ff8a96' : '#8fb3a4' });
+      text(ctx, fmtRate(r.value * SPREAD.buy), 430, y, { size: 32, align: 'right', color: '#7dffc0', font: MONO });
+      text(ctx, fmtRate(r.value * SPREAD.sell), 610, y, { size: 32, align: 'right', color: '#ffb3bb', font: MONO });
     });
-  }, -8.96, 2.9, -6.0, Math.PI / 2);
+    text(ctx, 'Покупка и продажа — пример: банк берёт разницу', w / 2, 345, { size: 19, align: 'center', color: '#6f8f86', weight: 600 });
+  };
+  const ratesSign = k.sign(1.9, 1.1, 640, 370, drawRates, -8.96, 3.05, -6.0, Math.PI / 2);
+  k.reg('rates', ratesSign, 'Курсы валют');
+  room.captions.rates = () => {
+    if (!rates) return 'Курсы валют загружаются…';
+    const list = ['USD', 'EUR', 'CNY'].map((c) => `${RATE_META[c].name} ${fmtRate(rates.rows[c].value)} ₽`).join(', ');
+    return rates.live
+      ? `Курсы ЦБ РФ на ${rateDate(rates, true)}: ${list}. Банк покупает валюту дешевле, а продаёт дороже — на разнице и зарабатывает 💱`
+      : `Сейчас нет связи с ЦБ — на табло примерные курсы: ${list}. Банк покупает валюту дешевле, а продаёт дороже 💱`;
+  };
+
+  // Часы над банкоматами — настоящее время у игрока
+  const clock = k.sign(1.05, 0.42, 400, 160, () => {}, -8.96, 2.75, 5.55, Math.PI / 2);
+  let clockMin = -1;
+  const drawClock = () => {
+    const now = new Date();
+    clockMin = now.getMinutes();
+    clock.userData.canvas.redraw((ctx, w, h) => {
+      ctx.fillStyle = '#070b09';
+      ctx.fillRect(0, 0, w, h);
+      text(ctx, now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }), w / 2, 66, { size: 86, align: 'center', color: '#7dffc0', font: MONO, weight: 700 });
+      text(ctx, now.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' }), w / 2, 132, { size: 26, align: 'center', color: '#8fb3a4', weight: 700 });
+    });
+  };
+  drawClock();
+  k.reg('clock', clock, 'Часы');
+  room.captions.clock = () => `Сейчас ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}. Отделение работает, пока ты учишься 🙂`;
+
+  // Бегущая строка над консультациями: курсы ЦБ, советы по финансовой грамотности, имя стажёра
+  const ticker = k.sign(3.6, 0.34, 4096, 96, () => {}, 5.2, 3.72, -7.96);
+  const tickerTex = ticker.userData.canvas.tex;
+  tickerTex.wrapS = THREE.RepeatWrapping;
+  tickerTex.repeat.set(0.25, 1);
+  let tickerName = '';
+  const drawTicker = () => {
+    const items = [];
+    if (rates) items.push(`${rates.live ? `Курсы ЦБ на ${rateDate(rates)}` : 'Курсы (примерные)'}:  ${['USD', 'EUR', 'CNY'].map((c) => `${RATE_META[c].sign} ${fmtRate(rates.rows[c].value)} ${trend(rates.rows[c])}`).join('   ')}`);
+    if (tickerName) items.push(`Стажёр недели — ${tickerName}. Добро пожаловать в команду!`);
+    items.push('Банк никогда не просит код из СМС', 'Звонят «из банка»? Положи трубку и перезвони по номеру на карте', 'Кредит: все платежи — не больше трети дохода', 'Сначала подушка безопасности, потом мечта', '«30% в месяц гарантированно» — это пирамида');
+    ticker.userData.canvas.redraw((ctx, w, h) => {
+      ctx.fillStyle = '#0a0d0b';
+      ctx.fillRect(0, 0, w, h);
+      ctx.font = `800 52px ${SANS}`;
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffb020';
+      let x = 40;
+      for (const it of items) {
+        const wd = ctx.measureText(it).width;
+        if (x + wd > w - 40) break;
+        ctx.fillText(it, x, h / 2 + 2);
+        x += wd;
+        ctx.fillStyle = '#3ddc84';
+        ctx.fillText('  ◆  ', x, h / 2 + 2);
+        x += ctx.measureText('  ◆  ').width;
+        ctx.fillStyle = '#ffb020';
+      }
+      // сетка «светодиодов»
+      ctx.fillStyle = 'rgba(0,0,0,0.38)';
+      for (let yy = 0; yy < h; yy += 4) ctx.fillRect(0, yy, w, 1);
+      for (let xx = 0; xx < w; xx += 4) ctx.fillRect(xx, 0, 1, h);
+      ctx.textBaseline = 'alphabetic';
+    });
+    tickerTex.wrapS = THREE.RepeatWrapping;
+    tickerTex.needsUpdate = true;
+  };
+  drawTicker();
+  getRates().then((r) => {
+    rates = r;
+    ratesSign.userData.canvas.redraw(drawRates);
+    drawTicker();
+  });
+
+  // Коврик у входа
+  const mat = k.canvas(720, 270, () => {});
+  const drawMat = (ctx, w, h) => {
+    ctx.fillStyle = '#23272e';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    for (let x = 0; x < w; x += 12) ctx.fillRect(x, 0, 5, h);
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(14, 14, w - 28, h - 28);
+    const em = drawBrand(ctx, 44, 45, 160, 180, { kind: 'emblem', plate: false, tint: '#e3f6ec' });
+    text(ctx, 'ДОБРО', em ? 440 : w / 2, 112, { size: 62, align: 'center', color: '#e3f6ec' });
+    text(ctx, 'ПОЖАЛОВАТЬ', em ? 440 : w / 2, 180, { size: 54, align: 'center', color: '#e3f6ec' });
+  };
+  mat.redraw(drawMat);
+  onBrand(() => mat.redraw(drawMat));
+  const matMesh = k.plane(2.4, 0.9, new THREE.MeshStandardMaterial({ map: mat.tex, roughness: 0.95 }), 0, 0.013, 7.25);
+  matMesh.rotation.x = -Math.PI / 2;
 
   // Охранник у входа
   const guard = k.person({ shirt: 0x22303d, pants: 0x1c2026, hair: 0x2b1d1a }, 2.4, 7.0, Math.PI + 0.3);
@@ -406,33 +576,34 @@ export function buildLobby(world) {
     g.addColorStop(1, '#0a1f16');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
-    const lx = drawBrand(ctx, 28, 24, 230, 86) ? 285 : 36;
-    text(ctx, 'КАРЬЕРА В БАНКЕ', lx, 52, { size: 40, color: '#7dffc0' });
-    text(ctx, 'Профиль стажёра', lx, 96, { size: 30, color: '#e3f6ec', weight: 700 });
+    // сверху — светлая полоса с логотипом банка
+    const band = drawBrand(ctx, 0, 0, w, 96, { radius: 0, pad: 0.16 });
+    text(ctx, 'КАРЬЕРА В БАНКЕ', 36, band ? 132 : 56, { size: 38, color: '#7dffc0' });
+    text(ctx, 'профиль стажёра', w - 36, band ? 134 : 58, { size: 28, color: '#e3f6ec', weight: 700, align: 'right' });
     const { tried, ready, top } = careerState;
     if (ready && top) {
-      text(ctx, 'Тебе подходит:', w / 2, 168, { size: 30, align: 'center', color: '#cfe9dc', weight: 700 });
-      text(ctx, `${top.icon} ${top.title}`, w / 2, 218, { size: 44, align: 'center', color: top.color });
-    } else text(ctx, 'Какая профессия — твоя?', w / 2, 190, { size: 38, align: 'center' });
+      text(ctx, 'Тебе подходит:', w / 2, 184, { size: 28, align: 'center', color: '#cfe9dc', weight: 700 });
+      fitText(ctx, `${top.icon} ${top.title}`, w / 2, 228, w - 60, { size: 42, align: 'center', color: top.color });
+    } else text(ctx, 'Какая профессия — твоя?', w / 2, 205, { size: 38, align: 'center' });
     PROFESSIONS.forEach((p, i) => {
       const x = 115 + i * 130;
       const on = tried.includes(p.id);
       ctx.beginPath();
-      ctx.arc(x, 300, 46, 0, Math.PI * 2);
+      ctx.arc(x, 318, 44, 0, Math.PI * 2);
       ctx.fillStyle = on ? p.color : 'rgba(255,255,255,0.08)';
       ctx.fill();
       ctx.globalAlpha = on ? 1 : 0.45;
-      text(ctx, p.icon, x, 300, { size: 46, align: 'center' });
+      text(ctx, p.icon, x, 318, { size: 44, align: 'center' });
       ctx.globalAlpha = 1;
       if (on) {
         ctx.beginPath();
-        ctx.arc(x + 34, 266, 16, 0, Math.PI * 2);
+        ctx.arc(x + 33, 285, 16, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
-        text(ctx, '✓', x + 34, 267, { size: 22, align: 'center', color: '#1f7a4d' });
+        text(ctx, '✓', x + 33, 286, { size: 22, align: 'center', color: '#1f7a4d' });
       }
     });
-    text(ctx, ready ? '✓ Профиль готов — открой его' : `Попробовано ${tried.length} из 5 — сыграй в каждом кабинете`, w / 2, 400, { size: ready ? 32 : 28, align: 'center', color: ready ? '#ffd166' : '#cfe9dc', weight: 700 });
+    text(ctx, ready ? '✓ Профиль готов — открой его' : `Попробовано ${tried.length} из 5 — сыграй в каждом кабинете`, w / 2, 414, { size: ready ? 32 : 28, align: 'center', color: ready ? '#ffd166' : '#cfe9dc', weight: 700 });
   };
   career.userData.canvas.redraw(drawCareer);
   onBrand(() => career.userData.canvas.redraw(drawCareer));
@@ -503,6 +674,10 @@ export function buildLobby(world) {
     }
     show(granStand, !guestsOn.gran);
     drawThanks(thanksNotes(state));
+    if (state.nickname && state.nickname !== tickerName) {
+      tickerName = state.nickname;
+      drawTicker();
+    }
   };
 
   // Двери кабинетов
@@ -635,8 +810,20 @@ export function buildLobby(world) {
   };
 
   let t0 = 0;
+  let tSlow = 0;
   room.update = (dt, t) => {
     updateLookers(dt);
+    tickerTex.offset.x = (tickerTex.offset.x + dt * 0.03) % 1;
+    tSlow += dt;
+    if (tSlow > 5) {
+      tSlow = 0;
+      if (new Date().getMinutes() !== clockMin) drawClock();
+      const ph = skyPhase();
+      if (ph !== phase) {
+        phase = ph;
+        sky.redraw(drawSky);
+      }
+    }
     for (const p of PROFESSIONS) {
       const r = room[`ring_${p.id}`];
       r.material.opacity = 0.35 + Math.sin(t * 3 + p.color.length) * 0.25;
@@ -649,7 +836,11 @@ export function buildLobby(world) {
     if (t0 > 2.5) {
       t0 = 0;
       shown++;
-      if (shown % PROFESSIONS.length === 0) ticket++;
+      if (shown % PROFESSIONS.length === 0) {
+        ticket++;
+        // тихий «дин-дон» электронной очереди — только когда игрок в холле и не на паузе
+        if (ticket % 2 === 0 && world.ambientOk) audio.chime();
+      }
       drawBoard();
       drawQueue(shown % 7);
     }

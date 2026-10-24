@@ -137,7 +137,8 @@ export function runFlow(ctx) {
     }
 
     async function decide(block, timedOut = false) {
-      if (busy || !cardEl) return;
+      // после последней карточки кнопки ещё видны: лишний клик не должен ничего ломать
+      if (busy || !cardEl || idx >= cards.length) return;
       busy = true;
       cancelAnimationFrame(raf);
       stack.querySelector('.f-tutor')?.remove();
@@ -188,6 +189,10 @@ export function runFlow(ctx) {
     function finish() {
       window.removeEventListener('keydown', onKey);
       cancelAnimationFrame(raf);
+      busy = true;
+      cardEl = null;
+      blockBtn.disabled = true;
+      passBtn.disabled = true;
       res.stars = res.mistakes === 0 ? 3 : res.mistakes <= 2 ? 2 : 1;
       res.learned = ['k_profile', 'k_signals', 'k_balance'].filter((k) => ctx.learn(k));
       res.stats = [

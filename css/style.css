@@ -1797,8 +1797,11 @@ body.has-tut #controls-hint { display: none; }
 img.brand-logo { display: none; }
 body.has-brand img.brand-logo[src] { display: block; }
 .partner { display: flex; align-items: center; gap: 10px; font: 700 0.72rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-.partner img.brand-logo { height: 34px; width: auto; max-width: 160px; object-fit: contain; padding: 4px 8px; border-radius: 8px; background: #fff; }
-.cert-brand { height: 40px; max-width: 200px; object-fit: contain; padding: 5px 10px; border-radius: 10px; background: #fff; }
+.partner img.brand-logo { height: 40px; width: auto; max-width: 210px; object-fit: contain; padding: 6px 10px; border-radius: 9px; background: #fff; }
+.partner .p-short { display: none; }
+body.has-logo .partner .p-full { display: none; }
+body.has-logo .partner .p-short { display: inline; }
+.cert-brand { height: 46px; max-width: 250px; object-fit: contain; padding: 6px 12px; border-radius: 10px; background: #fff; }
 
 /* ───────── «Как тебе эта работа?» в разборе смены ───────── */
 .like-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: 16px; background: var(--panel-2); border: 1px dashed var(--line); max-width: 100%; }
@@ -1813,7 +1816,7 @@ body.has-brand img.brand-logo[src] { display: block; }
 /* ───────── профиль стажёра ───────── */
 .screen-card.profile-card { width: min(640px, 100%); }
 .pf-top { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
-.pf-brand { height: 30px; max-width: 150px; object-fit: contain; padding: 3px 8px; border-radius: 8px; background: #fff; }
+.pf-brand { height: 34px; max-width: 180px; object-fit: contain; padding: 5px 9px; border-radius: 8px; background: #fff; }
 .pf-head { display: flex; align-items: center; gap: 12px; text-align: left; }
 .pf-head .sb-photo { width: 62px; height: 62px; }
 .pf-head b { display: block; font-size: 1.25rem; }
@@ -1845,9 +1848,10 @@ body.has-brand img.brand-logo[src] { display: block; }
 .pf-step { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); }
 .pf-step p { margin: 0; line-height: 1.4; }
 .pf-bank { padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(61, 220, 132, 0.06); display: flex; flex-direction: column; gap: 8px; }
-.pf-bank-head { display: flex; gap: 10px; align-items: center; }
+.pf-bank-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .pf-bank-head p { margin: 0; line-height: 1.4; font-size: 0.92rem; }
-.pf-bank-logo { height: 34px; max-width: 120px; object-fit: contain; padding: 4px 8px; border-radius: 8px; background: #fff; flex: none; }
+.pf-bank-logo { height: 40px; max-width: 210px; object-fit: contain; padding: 6px 10px; border-radius: 8px; background: #fff; flex: none; }
+.pf-bank-head p { flex: 1 1 220px; }
 .pf-bank ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .pf-bank li { display: flex; gap: 8px; align-items: center; font-size: 0.92rem; }
 .pf-bank .btn { align-self: flex-start; text-decoration: none; color: var(--mint); }
@@ -1871,3 +1875,7 @@ body.has-brand img.brand-logo[src] { display: block; }
   .pf-rank > div { grid-template-columns: 24px minmax(0, 1fr) auto 26%; }
   .pf-rank b { white-space: normal; line-height: 1.2; }
 }
+
+/* ───────── джойстик слева или справа ───────── */
+body:not(.touch) .touch-only { display: none !important; }
+body.joy-right #joystick { left: auto; right: 22px; }

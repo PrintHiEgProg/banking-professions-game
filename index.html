@@ -6,6 +6,8 @@
   <title>Профессии в Банке</title>
   <meta name="description" content="3D-игра «Профессии в Банке»: операционист, кредитный эксперт, финансовый консультант, инкассатор и специалист по финансовой безопасности — по 5 смен в каждой.">
   <meta name="theme-color" content="#050b09">
+  <!-- адрес серверных функций на Vercel: /api/events (статистика), /api/cbr (курсы ЦБ); без этой строки игра работает без них -->
+  <meta name="bank-api" content="/api">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23050b09'/%3E%3Cpath d='M10 26 32 12l22 14Z' fill='%233ddc84'/%3E%3Cpath d='M17 30v18M27 30v18M37 30v18M47 30v18' stroke='%233ddc84' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M10 53h44' stroke='%233ddc84' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -55,7 +57,7 @@
   <!-- Титульный экран -->
   <div id="title" class="screen">
     <div class="title-inner">
-      <div class="partner"><img class="brand-logo" alt="Центр-инвест"><span>Кейс банка «Центр-инвест»</span></div>
+      <div class="partner"><img class="brand-logo" data-kind="logo" alt="Центр-инвест"><span class="p-full">Кейс банка «Центр-инвест»</span><span class="p-short">Кейс хакатона</span></div>
       <div class="logo">
         <svg viewBox="0 0 64 64" class="logo-shield"><path d="M8 26 32 10l24 16" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M14 28v20M26 28v20M38 28v20M50 28v20" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M8 54h48" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
         <h1 class="logo-text" data-text="ПРОФЕССИИ">ПРОФЕССИИ<small>в&nbsp;Банке</small></h1>
@@ -91,9 +93,11 @@
         <button id="btn-howto" class="link-btn">Как играть</button>
         <button id="btn-quality" class="link-btn">Графика: <span></span></button>
         <button id="btn-sound-title" class="link-btn">Звук: <span></span></button>
+        <button id="btn-joy" class="link-btn touch-only" title="Для левшей и игры одной рукой">Джойстик: <span></span></button>
+        <button id="btn-stats" class="link-btn" title="Без имён и регистрации: какие профессии выбирают и что нравится — чтобы банк делал игру и стажировки лучше">Статистика: <span></span></button>
         <button id="btn-jury" class="link-btn" title="Для жюри и демонстрации: любую смену можно открыть сразу">Смены: <span></span></button>
       </div>
-      <p class="title-foot">💾 Прогресс сохраняется автоматически · без регистрации</p>
+      <p class="title-foot">💾 Прогресс сохраняется автоматически · без регистрации · статистика — анонимная, без имён</p>
     </div>
   </div>
 
@@ -112,6 +116,7 @@
       <button id="p-album" class="btn ghost">📒 Мои знания</button>
       <button id="p-sound" class="btn ghost">Звук: <span></span></button>
       <button id="p-quality" class="btn ghost">Графика: <span></span></button>
+      <button id="p-joy" class="btn ghost touch-only">Джойстик: <span></span></button>
       <button id="p-howto" class="btn ghost">Как играть</button>
       <button id="p-lobby" class="btn ghost hidden">🏦 Выйти в холл банка</button>
       <button id="p-menu" class="btn ghost">💾 Сохранить и выйти в меню</button>
@@ -125,7 +130,7 @@
       <h2>Как играть</h2>
       <div class="howto-grid">
         <div><b>👀 Осмотреться</b><span>Кликни по экрану — камера следует за мышью (Esc — отпустить) · на телефоне — веди пальцем</span></div>
-        <div><b>🚶 Ходить</b><span>WASD / стрелки, Shift — бег · джойстик слева внизу</span></div>
+        <div><b>🚶 Ходить</b><span>WASD / стрелки, Shift — бег · джойстик внизу (слева или справа — в настройках)</span></div>
         <div><b>👆 Действие</b><span>Прицел на предмет и E (или клик) · на телефоне — тап</span></div>
         <div><b>🎯 Цель</b><span>Зелёная стрелка и задача слева вверху</span></div>
         <div><b>🚪 Кабинеты</b><span>Подойди к двери или возьми талон в терминале</span></div>

@@ -8,11 +8,12 @@ import { loadSave, writeSave, clearSave, loadSettings, saveSettings, newProgress
 import { $, el, sleep, toast, caption, setObjective, closePanel, typeText, skipTyping, flash, showSaved, num, isTourActive } from './ui.js';
 import './tours.js';
 import { loadBrand } from './brand.js';
+import { track, setContext, sessionStart, analyticsAllowed, setAnalytics } from './analytics.js';
 import { profileCard } from './profile.js';
 import { careerProfile } from './data/career.js';
 import { shiftIntro, debrief, professionSummary, certificate, album, professionCard, kioskMenu, cabinetCard, briefingCall, mashaChat, confirmBox, profStars, profDone, mentorTalk, badgeEl, badgeCard, thanksBoard, staffRank } from './screens.js';
 import { AVATARS, avatarSvg } from './portraits.js';
-import { story, setBeat, takeNews, recentNews, teaser, WELCOME, MENTOR } from './story.js';
+import { story, setBeat, takeNews, recentNews, teaser, welcomeLines, MENTOR } from './story.js';
 import { buildLobby } from './rooms/lobby.js';
 import { runPhishing } from './episodes/phishing.js';
 import { runFlow } from './episodes/flow.js';
@@ -20,7 +21,7 @@ import { runRules } from './episodes/rules.js';
 import { runCall } from './episodes/call.js';
 import { runTrace } from './episodes/trace.js';
 
-const settings = { sound: true, quality: null, nickname: '', difficulty: 'normal', jury: false, avatar: 0, ...loadSettings() };
+const settings = { sound: true, quality: null, nickname: '', difficulty: 'normal', jury: false, avatar: 0, joy: 'left', ...loadSettings() };
 const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (!settings.quality) settings.quality = isTouch || Math.min(window.innerWidth, window.innerHeight) < 600 ? 'low' : 'high';
 
@@ -122,6 +123,7 @@ async function boot() {
   controls = new Controls(world, $('#scene'), { onHover, onClick: interact, onMiss, onLock });
   document.body.classList.toggle('can-lock', controls.lockAvailable);
   document.body.classList.toggle('touch', isTouch);
+  sessionStart(isTouch ? (Math.min(innerWidth, innerHeight) >= 700 ? 'tablet' : 'mobile') : 'desktop');
   audio.setMuted(!settings.sound);
   world.setSky('night');
 
@@ -136,6 +138,7 @@ async function boot() {
     controls.update(dt);
     tickTutorial();
     if (world.room === 'security' && currentProf?.id === 'security' && progress?.profs.security.shift === 1 && target && !paused) world.state.threat += dt * 2.4;
+    world.ambientOk = mode === 'lobby' && !paused && !busy;
     world.update(dt);
     updateTargetArrow();
     requestAnimationFrame(frame);
@@ -254,6 +257,9 @@ function setupMenus() {
     for (const s of ['#btn-sound-title span', '#p-sound span']) $(s).textContent = settings.sound ? 'вкл' : 'выкл';
     for (const s of ['#btn-quality span', '#p-quality span']) $(s).textContent = settings.quality === 'high' ? 'высокая' : 'быстрая';
     $('#btn-jury span').textContent = settings.jury ? 'все открыты (режим жюри)' : 'по порядку';
+    for (const s of ['#btn-joy span', '#p-joy span']) $(s).textContent = settings.joy === 'right' ? 'справа' : 'слева';
+    $('#btn-stats span').textContent = analyticsAllowed() ? 'анонимная' : 'выкл';
+    document.body.classList.toggle('joy-right', settings.joy === 'right');
     document.body.classList.toggle('muted', !settings.sound);
   };
   const toggleSound = () => {
@@ -282,6 +288,22 @@ function setupMenus() {
     renderSettings();
   });
   $('#p-quality').addEventListener('click', toggleQuality);
+  // Джойстик слева или справа — кому как удобнее (левши, телефон в одной руке)
+  const toggleJoy = () => {
+    audio.init();
+    audio.click();
+    settings.joy = settings.joy === 'right' ? 'left' : 'right';
+    saveSettings(settings);
+    renderSettings();
+  };
+  $('#btn-joy').addEventListener('click', toggleJoy);
+  $('#btn-stats').addEventListener('click', () => {
+    audio.init();
+    audio.click();
+    setAnalytics(!analyticsAllowed());
+    renderSettings();
+  });
+  $('#p-joy').addEventListener('click', toggleJoy);
   renderSettings();
 
   const howto = $('#howto');
@@ -304,7 +326,7 @@ function setupMenus() {
     const wasPaused = paused;
     $('#pause').classList.add('hidden');
     if (!wasPaused) setPaused(true, false);
-    if ((await badgeCard(progress)) === 'profile') await profileCard(progress, { preview: settings.jury });
+    if ((await badgeCard(progress)) === 'profile') await profileCard(progress, { preview: settings.jury, source: 'badge' });
     setPaused(false);
   });
   $('#p-album').addEventListener('click', openAlbum);
@@ -358,6 +380,8 @@ async function begin(p, withIntro) {
   if (settings.jury) for (const id of Object.keys(progress.profs)) progress.profs[id].unlocked = 5;
   ctx.state = progress;
   ctx.diff = DIFFICULTY[progress.difficulty] || DIFFICULTY.normal;
+  setContext({ difficulty: progress.difficulty });
+  if (withIntro) track('game_start', { data: { avatar: progress.avatar || 0 } });
   $('#title').classList.add('gone');
   if (withIntro) await playIntro();
   $('#hud').classList.remove('hidden');
@@ -467,7 +491,7 @@ async function enterLobby() {
     world.setMarker(null);
     await sleep(350);
     if (mode === 'lobby') await ctx.focus('mentor');
-    if (mode === 'lobby') await mentorTalk(progress, { lines: WELCOME, btn: '🚪 Пойду выбирать кабинет', extra: el('div', { class: 'welcome-badge' }, el('h4', {}, '🪪 Держи пропуск стажёра'), badgeEl(progress)) });
+    if (mode === 'lobby') await mentorTalk(progress, { lines: welcomeLines(), btn: '🚪 Пойду выбирать кабинет', extra: el('div', { class: 'welcome-badge' }, el('h4', {}, '🪪 Держи пропуск стажёра'), badgeEl(progress)) });
     if (mode === 'lobby') {
       await controls.returnFromFocus();
       world.setMarker('kiosk');
@@ -488,7 +512,8 @@ async function enterLobby() {
     save();
     busy = true;
     controls.setEnabled(false);
-    if ((await certificate(progress)) === 'profile') await profileCard(progress, { preview: settings.jury });
+    track('certificate');
+    if ((await certificate(progress)) === 'profile') await profileCard(progress, { preview: settings.jury, source: 'certificate' });
     busy = false;
     controls.setEnabled(true);
   }
@@ -502,7 +527,9 @@ async function revealProfile() {
   const wasBusy = busy;
   busy = true;
   controls.setEnabled(false);
-  await profileCard(progress, { fresh: true });
+  const cp = careerProfile(progress);
+  track('profile_ready', { prof: cp.top.prof.id, value: cp.match, data: { second: cp.second.prof.id, ...cp.traits, tried: cp.tried.length } });
+  await profileCard(progress, { fresh: true, source: 'auto' });
   world.rooms.lobby?.setCareer?.(careerProfile(progress));
   busy = wasBusy;
   if (!busy && !paused && mode === 'lobby') controls.setEnabled(true);
@@ -517,7 +544,7 @@ function startTutorial() {
   const lock = controls.lockAvailable;
   const steps = [
     ['look', isTouch ? '👆 Веди пальцем по экрану — осмотрись' : lock ? '🖱 Кликни по экрану и поводи мышью — осмотрись' : '🖱 Зажми мышь и поведи — осмотрись'],
-    ['walk', isTouch ? '🕹 Джойстик слева внизу — пройдись' : '⌨️ Пройдись: W A S D · Shift — бег'],
+    ['walk', isTouch ? `🕹 Джойстик ${settings.joy === 'right' ? 'справа' : 'слева'} внизу — пройдись` : '⌨️ Пройдись: W A S D · Shift — бег'],
     ['use', isTouch ? '🎫 Нажми на терминал очереди или на дверь' : '🎫 Наведи прицел на терминал или дверь и нажми E'],
   ];
   const rows = steps.map(([id, t]) => el('li', { 'data-id': id }, el('i'), el('span', {}, t)));
@@ -547,6 +574,7 @@ function tutorialDone(id) {
     document.body.classList.remove('has-tut');
     story(progress).tut = true;
     save();
+    track('tutorial_done');
     setTimeout(() => {
       box.classList.remove('show');
       setTimeout(() => box.remove(), 400);
@@ -610,7 +638,7 @@ async function lobbyInteract(item) {
     controls.setEnabled(false);
     world.setMarker(null);
     await ctx.focus('career');
-    await profileCard(progress, { preview: settings.jury });
+    await profileCard(progress, { preview: settings.jury, source: 'stand' });
     if (careerProfile(progress).ready) progress.profileShown = true;
     await controls.returnFromFocus();
     busy = false;
@@ -662,6 +690,7 @@ async function enterRoom(prof) {
   }
   mode = 'room';
   currentProf = prof;
+  track('cabinet_enter', { prof: prof.id });
   ctx.profession = prof;
   ctx.prof = progress.profs[prof.id];
   progress.current = prof.id;
@@ -759,6 +788,8 @@ async function playShift(prof, n) {
   controls.setPose(room.spawn.pos, room.spawn.yaw, -0.06);
   if (ps.stage === 0) await shiftIntro(prof, shift);
   save();
+  const shiftT0 = performance.now();
+  track('shift_start', { prof: prof.id, shift: n });
 
   let hello = shift.hello;
   if (prof.id === 'security' && n === 5) hello = progress.outcome.call === 'won' ? 'Валентина Петровна спасена. Но Дима — только звено. К доске!' : 'Деньги Валентины Петровны ещё в цепочке. Догоним — к доске!';
@@ -780,6 +811,7 @@ async function playShift(prof, n) {
   const readyBefore = careerProfile(progress).ready;
   const res = ps.pending || { stars: 1, stats: [] };
   const stars = res.stars || 1;
+  track('shift_end', { prof: prof.id, shift: n, stars, value: Math.round((performance.now() - shiftT0) / 1000) });
   const prev = ps.best[n];
   if (!prev || stars > prev.stars || (stars === prev.stars && (res.score || 0) > prev.score)) ps.best[n] = { stars, score: Math.max(0, res.score || 0) };
   ps.unlocked = Math.max(ps.unlocked, Math.min(5, n + 1));
@@ -798,6 +830,7 @@ async function playShift(prof, n) {
   const choice = await debrief(prof, shift, res, ps, last, teaser(prof.id, n, progress), promo, (v) => {
     ps.like = v;
     save();
+    track('like', { prof: prof.id, shift: n, value: v });
   });
   if (!readyBefore && careerProfile(progress).ready && !progress.profileShown) await revealProfile();
   if (last && choice === 'next') {

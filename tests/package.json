@@ -13,7 +13,11 @@
     "mouse": "node lock.mjs",
     "monkey": "node monkey.mjs teller 5 normal 1",
     "profile": "node profile.mjs 1366 768 1",
-    "profile:phone": "node profile.mjs 390 844 1"
+    "profile:phone": "node profile.mjs 390 844 1",
+    "brand": "node brand.mjs 1366 768 1",
+    "joystick": "node joy.mjs",
+    "superset:shot": "node superset-shot.mjs http://localhost:8088",
+    "devserver": "node devserver.mjs 8790"
   },
   "dependencies": {
     "playwright": "^1.47.0"

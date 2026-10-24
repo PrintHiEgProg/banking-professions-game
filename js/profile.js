@@ -7,6 +7,7 @@ import { avatarSvg, portrait } from './portraits.js';
 import { overlay, staffRank } from './screens.js';
 import { MENTOR } from './story.js';
 import { BRAND, brandImg, drawBrand } from './brand.js';
+import { track } from './analytics.js';
 
 const pct = (v) => `${Math.round(v * 100)}%`;
 const studyRow = (prof) => prof.life.find(([i]) => i === '🎓') || null;
@@ -28,11 +29,12 @@ function triedStrip(cp) {
 }
 
 // Экран профиля. fresh — открылся сам, когда игрок попробовал все 5 профессий. preview — режим жюри.
-export function profileCard(progress, { fresh = false, preview = false } = {}) {
+export function profileCard(progress, { fresh = false, preview = false, source = 'other' } = {}) {
   return new Promise((resolve) => {
     const { box: card, close } = overlay('profile-card');
     const box = { append: (...kids) => card.append(...kids.filter(Boolean)), style: card.style };
     const cp = careerProfile(progress);
+    track('profile_open', { prof: cp.ready ? cp.top.prof.id : null, data: { source, tried: cp.tried.length } });
     const { rank, stars } = staffRank(progress);
     const done = () => {
       audio.click();
@@ -78,7 +80,7 @@ export function profileCard(progress, { fresh = false, preview = false } = {}) {
           { class: 'pf-bank' },
           el('div', { class: 'pf-bank-head' }, brandImg('pf-bank-logo'), el('p', {}, BANK_PATH.intro)),
           el('ol', {}, BANK_PATH.steps.map(([i, t]) => el('li', {}, el('span', {}, i), t))),
-          el('a', { class: 'btn ghost small', href: BRAND.careerUrl, target: '_blank', rel: 'noopener' }, 'Карьера в «Центр-инвест» ↗'),
+          el('a', { class: 'btn ghost small', href: BRAND.careerUrl, target: '_blank', rel: 'noopener', onClick: () => track('career_click', { prof: top.prof.id }) }, 'Карьера в «Центр-инвест» ↗'),
         ),
       ),
       el('h4', {}, 'Все профессии'),
@@ -164,7 +166,7 @@ export async function renderShareCard(progress, cp = careerProfile(progress)) {
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   // шапка: логотип банка (если есть) и название игры
-  const hasLogo = drawBrand(ctx, 70, 56, 300, 110);
+  const hasLogo = drawBrand(ctx, 60, 50, 430, 124, { plateColor: '#ffffff', pad: 0.16 });
   ctx.fillStyle = '#7dffc0';
   ctx.font = F(800, 38);
   if (hasLogo) {
@@ -281,8 +283,8 @@ export async function shareCard(progress, cp) {
           'div',
           { class: 'row center' },
           el('button', { class: 'btn ghost', onClick: () => { URL.revokeObjectURL(url); done(); } }, 'Закрыть'),
-          canShare ? el('button', { class: 'btn ghost', onClick: async () => { try { await navigator.share({ files: [file], title: 'Профессии в Банке', text: `Мне подходит: ${cp.top.prof.full}. А тебе?` }); } catch { /* отменили */ } } }, '📤 Поделиться') : null,
-          el('a', { class: 'btn primary', href: url, download: name, onClick: () => audio.coin() }, '⬇ Скачать'),
+          canShare ? el('button', { class: 'btn ghost', onClick: async () => { track('share_card', { prof: cp.top.prof.id, data: { action: 'share' } }); try { await navigator.share({ files: [file], title: 'Профессии в Банке', text: `Мне подходит: ${cp.top.prof.full}. А тебе?` }); } catch { /* отменили */ } } }, '📤 Поделиться') : null,
+          el('a', { class: 'btn primary', href: url, download: name, onClick: () => { audio.coin(); track('share_card', { prof: cp.top.prof.id, data: { action: 'download' } }); } }, '⬇ Скачать'),
         ),
       );
     }, 'image/png');

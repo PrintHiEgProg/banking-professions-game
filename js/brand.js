@@ -1,64 +1,94 @@
-// Логотип банка-партнёра. Официальный файл кладётся вместо заглушки brand/logo.png (см. brand/README.md) —
-// и он сам появляется в игре: на титульном экране, в холле (карьерный стенд, ролл-ап, банкоматы),
-// в профиле стажёра, в сертификате и на карточке результата. Нет файла — игра работает без логотипа.
+// Логотип банка-партнёра — два варианта, как в фирменном стиле:
+//   brand/logo.png   — широкий баннер (знак + «Банк Центр-инвест»): большие места — стена холла, ролл-ап, стенд, карточка;
+//   brand/emblem.png — только знак: маленькие места — табло, банкоматы, коврик у входа.
+// Файлов нет (или вместо них прозрачные заглушки 1×1) — игра работает без логотипа.
 export const BRAND = {
   name: 'Центр-инвест',
   logo: 'brand/logo.png',
+  emblem: 'brand/emblem.png',
   careerUrl: 'https://www.centrinvest.ru/social-projects/career',
+  // Плашка под логотипом в 3D: светлая, но ниже порога свечения (bloom).
+  // Чисто белая плашка «светилась» и засвечивала зелёный логотип.
+  plate: '#e8eee9',
 };
 
-let img = null;
-let started = false;
+const imgs = { logo: null, emblem: null };
 const subs = new Set();
+let started = false;
 
-export const brandLogo = () => img;
+export const brandLogo = (kind = 'logo') => imgs[kind] || null;
+export const hasBrand = () => !!(imgs.logo || imgs.emblem);
 
-// Подписка: вызовется сразу, если логотип уже загружен, или когда загрузится
+// Подписка на загрузку логотипов: вызывается сразу (если что-то уже есть) и после каждой загрузки
 export function onBrand(fn) {
-  if (img) fn(img);
-  else subs.add(fn);
+  subs.add(fn);
+  if (hasBrand()) fn();
 }
 
 export function loadBrand() {
   if (started) return;
   started = true;
-  const i = new Image();
-  i.decoding = 'async';
-  i.onload = () => {
-    // в архиве лежит прозрачная заглушка 1×1 — её не показываем, ждём настоящий логотип
-    if (i.naturalWidth < 8 || i.naturalHeight < 8) return;
-    img = i;
-    document.body.classList.add('has-brand');
-    for (const node of document.querySelectorAll('img.brand-logo')) node.src = i.src;
-    for (const fn of subs) fn(i);
-    subs.clear();
-  };
-  i.src = BRAND.logo;
+  for (const kind of ['logo', 'emblem']) {
+    const i = new Image();
+    i.decoding = 'async';
+    i.onload = () => {
+      // заглушку 1×1 не показываем — ждём настоящий файл
+      if (i.naturalWidth < 8 || i.naturalHeight < 8) return;
+      imgs[kind] = i;
+      document.body.classList.add('has-brand', `has-${kind}`);
+      for (const node of document.querySelectorAll(`img.brand-logo[data-kind="${kind}"]`)) node.src = i.src;
+      for (const fn of subs) fn(kind);
+    };
+    i.src = BRAND[kind];
+  }
 }
 
 // <img> для DOM-экранов: появится, только если логотип есть
-export function brandImg(cls = '') {
+export function brandImg(cls = '', kind = 'logo') {
   const node = document.createElement('img');
   node.className = `brand-logo ${cls}`.trim();
+  node.dataset.kind = kind;
   node.alt = BRAND.name;
-  if (img) node.src = img.src;
+  if (imgs[kind]) node.src = imgs[kind].src;
   return node;
 }
 
-// Логотип на canvas: белая плашка со скруглением, логотип вписан с сохранением пропорций
-export function drawBrand(ctx, x, y, w, h, { plate = true, pad = 0.12, radius = 0.18 } = {}) {
+// Перекрашенная копия логотипа (например, белый знак на тёмном коврике)
+const tinted = new Map();
+function tintedImage(img, color) {
+  const key = `${img.src}|${color}`;
+  if (tinted.has(key)) return tinted.get(key);
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const x = c.getContext('2d');
+  x.drawImage(img, 0, 0);
+  x.globalCompositeOperation = 'source-in';
+  x.fillStyle = color;
+  x.fillRect(0, 0, c.width, c.height);
+  tinted.set(key, c);
+  return c;
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Логотип на canvas: вписан в прямоугольник с сохранением пропорций.
+// plate — светлая плашка под ним; tint — перекрасить (белый знак на тёмном фоне).
+export function drawBrand(ctx, x, y, w, h, { kind = 'logo', plate = true, plateColor = BRAND.plate, pad = 0.14, radius = 0.16, tint = null, align = 'center' } = {}) {
+  const img = imgs[kind];
   if (!img) return false;
   if (plate) {
-    const r = Math.min(w, h) * radius;
     ctx.save();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
+    ctx.fillStyle = plateColor;
+    roundedRect(ctx, x, y, w, h, Math.min(w, h) * radius);
     ctx.fill();
     ctx.restore();
   }
@@ -68,6 +98,10 @@ export function drawBrand(ctx, x, y, w, h, { plate = true, pad = 0.12, radius = 
   const k = Math.min(bw / img.naturalWidth, bh / img.naturalHeight);
   const dw = img.naturalWidth * k;
   const dh = img.naturalHeight * k;
-  ctx.drawImage(img, x + p + (bw - dw) / 2, y + p + (bh - dh) / 2, dw, dh);
-  return true;
+  const dx = align === 'left' ? x + p : x + p + (bw - dw) / 2;
+  ctx.save();
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(tint ? tintedImage(img, tint) : img, dx, y + p + (bh - dh) / 2, dw, dh);
+  ctx.restore();
+  return { x: dx, y: y + p + (bh - dh) / 2, w: dw, h: dh };
 }
