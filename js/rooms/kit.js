@@ -3,6 +3,7 @@ import * as THREE from 'three';
 
 export const SANS = 'Manrope, "Segoe UI", Arial, sans-serif';
 export const MONO = '"JetBrains Mono", Consolas, monospace';
+const EYE_GEO = new THREE.SphereGeometry(0.024, 10, 8);
 
 export function createKit(world, scene, interactables) {
   const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.75, ...o });
@@ -126,14 +127,28 @@ export function createKit(world, scene, interactables) {
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.42 * h, 4, 10), M(shirt));
     body.position.set(0, y0 + (sit ? 0.42 : 1.05 * h), 0);
     g.add(body);
-    sphere(0.14, M(skin), 0, y0 + (sit ? 0.86 : 1.52 * h), 0, g);
+    // Голова — отдельная группа: её можно повернуть к игроку. Глаза и рот показывают, куда смотрит человек.
+    const head = new THREE.Group();
+    head.position.set(0, y0 + (sit ? 0.86 : 1.52 * h), 0);
+    head.rotation.order = 'YXZ';
+    sphere(0.14, M(skin), 0, 0, 0, head);
     const hairM = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), M(hair));
-    hairM.position.set(0, y0 + (sit ? 0.88 : 1.54 * h), -0.01);
-    g.add(hairM);
+    hairM.position.set(0, 0.02 * (sit ? 1 : h), -0.01);
+    head.add(hairM);
+    const eyes = [-0.05, 0.05].map((ex) => {
+      const e = new THREE.Mesh(EYE_GEO, M(0x1b1b1f, { roughness: 0.3 }));
+      e.position.set(ex, -0.012, 0.124);
+      head.add(e);
+      return e;
+    });
+    box(0.05, 0.012, 0.012, M(0x8a3b2e), 0, -0.068, 0.12, head);
+    g.add(head);
     g.position.set(x, 0, z);
     g.rotation.y = ry;
     g.userData.baseY = 0;
     g.userData.phase = Math.random() * 6;
+    g.userData.head = head;
+    g.userData.eyes = eyes;
     return put(g, parent);
   }
   function plant(x, z, parent, s = 1) {

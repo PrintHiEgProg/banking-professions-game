@@ -7,6 +7,9 @@ import { PROFESSIONS, PROF, KNOWLEDGE } from './data/professions.js';
 import { loadSave, writeSave, clearSave, loadSettings, saveSettings, newProgress } from './save.js';
 import { $, el, sleep, toast, caption, setObjective, closePanel, typeText, skipTyping, flash, showSaved, num, isTourActive } from './ui.js';
 import './tours.js';
+import { loadBrand } from './brand.js';
+import { profileCard } from './profile.js';
+import { careerProfile } from './data/career.js';
 import { shiftIntro, debrief, professionSummary, certificate, album, professionCard, kioskMenu, cabinetCard, briefingCall, mashaChat, confirmBox, profStars, profDone, mentorTalk, badgeEl, badgeCard, thanksBoard, staffRank } from './screens.js';
 import { AVATARS, avatarSvg } from './portraits.js';
 import { story, setBeat, takeNews, recentNews, teaser, WELCOME, MENTOR } from './story.js';
@@ -106,6 +109,7 @@ function refreshHud() {
 // ─────────────────────────── запуск ───────────────────────────
 async function boot() {
   try {
+    loadBrand();
     world = new World($('#scene'), { quality: settings.quality });
   } catch (e) {
     console.error(e);
@@ -300,7 +304,7 @@ function setupMenus() {
     const wasPaused = paused;
     $('#pause').classList.add('hidden');
     if (!wasPaused) setPaused(true, false);
-    await badgeCard(progress);
+    if ((await badgeCard(progress)) === 'profile') await profileCard(progress, { preview: settings.jury });
     setPaused(false);
   });
   $('#p-album').addEventListener('click', openAlbum);
@@ -441,6 +445,7 @@ async function enterLobby() {
     controls.setPose(room.spawn.pos, room.spawn.yaw, -0.05);
     for (const p of PROFESSIONS) room.setProgress(p.id, profStars(progress.profs[p.id]), profDone(progress.profs[p.id]));
     room.setStory?.(progress);
+    room.setCareer?.(careerProfile(progress));
     audio.alarm(false);
     audio.ring(false);
     audio.heartbeat(0);
@@ -483,10 +488,24 @@ async function enterLobby() {
     save();
     busy = true;
     controls.setEnabled(false);
-    await certificate(progress);
+    if ((await certificate(progress)) === 'profile') await profileCard(progress, { preview: settings.jury });
     busy = false;
     controls.setEnabled(true);
   }
+  if (careerProfile(progress).ready && !progress.profileShown && mode === 'lobby') await revealProfile();
+}
+
+// Все 5 профессий попробованы — наставник показывает профиль стажёра
+async function revealProfile() {
+  progress.profileShown = true;
+  save();
+  const wasBusy = busy;
+  busy = true;
+  controls.setEnabled(false);
+  await profileCard(progress, { fresh: true });
+  world.rooms.lobby?.setCareer?.(careerProfile(progress));
+  busy = wasBusy;
+  if (!busy && !paused && mode === 'lobby') controls.setEnabled(true);
 }
 
 // ─────────────────────────── обучение управлению в холле ───────────────────────────
@@ -553,7 +572,7 @@ function mentorChat() {
   const news = fresh.length ? fresh : recentNews(progress, 3);
   const untouched = PROFESSIONS.filter((p) => !profDone(progress.profs[p.id]));
   const lines = [done === 0 ? 'Не знаешь, с чего начать? Любая дверь — хороший выбор. В первой смене каждой профессии — самое интересное.' : done >= 25 ? 'Все 25 смен позади! Ты попробовал(а) себя везде — это редкость.' : `Пройдено смен: ${done} из 25. Хороший темп, {name}!`];
-  const tip = untouched.length ? `💡 Загляни к профессии «${untouched[0].title}» ${untouched[0].icon} — там ждёт первая смена.` : '💡 Переиграй смены на три звезды — лучший результат сохраняется.';
+  const tip = untouched.length ? `💡 Загляни к профессии «${untouched[0].title}» ${untouched[0].icon} — там ждёт первая смена. Попробуешь все пять — на карьерном стенде у стены справа появится твой профиль: какая работа подходит тебе.` : '💡 Твой профиль стажёра — на карьерном стенде у стены справа. Переиграй смены на три звезды — лучший результат сохраняется.';
   save();
   return { lines, news, tip, btn: 'Спасибо!' };
 }
@@ -586,6 +605,19 @@ async function lobbyInteract(item) {
     return;
   }
   if (item.id.startsWith('door_')) return openDoor(PROF[item.id.slice(5)]);
+  if (item.id === 'career') {
+    busy = true;
+    controls.setEnabled(false);
+    world.setMarker(null);
+    await ctx.focus('career');
+    await profileCard(progress, { preview: settings.jury });
+    if (careerProfile(progress).ready) progress.profileShown = true;
+    await controls.returnFromFocus();
+    busy = false;
+    controls.setEnabled(true);
+    world.setMarker('kiosk');
+    return;
+  }
   if (item.id === 'thanks') {
     busy = true;
     controls.setEnabled(false);
@@ -745,6 +777,7 @@ async function playShift(prof, n) {
   }
 
   const rankBefore = staffRank(progress).rank;
+  const readyBefore = careerProfile(progress).ready;
   const res = ps.pending || { stars: 1, stats: [] };
   const stars = res.stars || 1;
   const prev = ps.best[n];
@@ -762,7 +795,11 @@ async function playShift(prof, n) {
   const rankAfter = staffRank(progress).rank;
   const promo = rankAfter !== rankBefore ? { rank: rankAfter, progress } : null;
   if (promo) $('#btn-badge').classList.add('bump');
-  const choice = await debrief(prof, shift, res, ps, last, teaser(prof.id, n, progress), promo);
+  const choice = await debrief(prof, shift, res, ps, last, teaser(prof.id, n, progress), promo, (v) => {
+    ps.like = v;
+    save();
+  });
+  if (!readyBefore && careerProfile(progress).ready && !progress.profileShown) await revealProfile();
   if (last && choice === 'next') {
     const allDone = PROFESSIONS.every((p) => profDone(progress.profs[p.id]) === 5);
     const r = await professionSummary(prof, ps, ctx.diff, allDone && !progress.certificate);

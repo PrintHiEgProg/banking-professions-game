@@ -55,6 +55,15 @@ async function waitDebrief(name, limit = 150000) {
       const stars = await ev(() => document.querySelectorAll('.screen-card .stars .on').length);
       const plot = await ev(() => [...document.querySelectorAll('.screen-card .cons.story p')].map((p) => p.textContent));
       console.log(`${name}: stars ${stars}; story: ${plot.join(' | ')}`);
+      // «Как тебе эта работа?» — ответ сохраняется в профиль стажёра
+      if (await ev(() => !!document.querySelector('.like-btn'))) {
+        await page.click('.like-btn');
+        await ev(() => document.querySelector('.screen-card.debrief').scrollTo(0, 99999));
+        await wait(400);
+        await shot(`${name}-like`);
+        const likes = await ev(() => Object.fromEntries(Object.entries(window.__bank.progress.profs).filter(([, v]) => v.like).map(([k, v]) => [k, v.like])));
+        console.log(`${name}: like saved ${JSON.stringify(likes)}`);
+      } else console.log(`${name}: NO LIKE ROW`);
       return true;
     }
     await wait(300);

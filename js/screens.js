@@ -5,8 +5,10 @@ import { audio } from './audio.js';
 import { el, sleep, openPanel, closePanel, typeText, skipTyping, starsEl, knowledgeCard, num, VOICE } from './ui.js';
 import { portrait, avatarSvg, person } from './portraits.js';
 import { MENTOR, weekSummary, thanksNotes } from './story.js';
+import { LIKES } from './data/career.js';
+import { brandImg } from './brand.js';
 
-function overlay(cls) {
+export function overlay(cls) {
   const box = el('div', { class: `screen-card ${cls}` });
   const wrap = el('div', { class: 'screen-wrap' }, box);
   document.body.append(wrap);
@@ -167,7 +169,7 @@ export function shiftIntro(prof, shift) {
   });
 }
 
-export function debrief(prof, shift, res, ps, isLast, plot = [], promo = null) {
+export function debrief(prof, shift, res, ps, isLast, plot = [], promo = null, onLike = null) {
   return new Promise((resolve) => {
     const { box, close } = overlay('debrief');
     box.style.setProperty('--pc', prof.color);
@@ -193,6 +195,7 @@ export function debrief(prof, shift, res, ps, isLast, plot = [], promo = null) {
       learned.length ? el('div', { class: 'k-grid' }, learned.map((k) => knowledgeCard(KNOWLEDGE[k], true))) : null,
       el('h4', {}, 'Профессия по кусочкам'),
       skillStrip(prof, ps, shift.n),
+      onLike ? likeRow(ps.like, onLike) : null,
       el(
         'div',
         { class: 'row center' },
@@ -203,6 +206,30 @@ export function debrief(prof, shift, res, ps, isLast, plot = [], promo = null) {
     );
     audio.bigWin();
   });
+}
+
+// «Как тебе эта работа?» — один тап, ответ идёт в профиль стажёра
+function likeRow(current, onLike) {
+  const row = el('div', { class: 'like-row', role: 'radiogroup', 'aria-label': 'Как тебе эта работа?' }, el('span', {}, 'Как тебе эта работа?'));
+  for (const [v, icon, label] of LIKES) {
+    row.append(
+      el('button', {
+        class: `like-btn${current === v ? ' on' : ''}`,
+        role: 'radio',
+        'aria-checked': current === v ? 'true' : 'false',
+        title: label,
+        onClick: (e) => {
+          audio.click();
+          for (const b of row.querySelectorAll('.like-btn')) {
+            b.classList.toggle('on', b === e.currentTarget);
+            b.setAttribute('aria-checked', b === e.currentTarget ? 'true' : 'false');
+          }
+          onLike(v);
+        },
+      }, el('span', {}, icon), el('small', {}, label)),
+    );
+  }
+  return row;
 }
 
 export function professionSummary(prof, ps, diff, allDone) {
@@ -243,6 +270,7 @@ export function certificate(progress) {
     const best = rows[0][0];
     const week = weekSummary(progress);
     box.append(
+      brandImg('cert-brand'),
       el('div', { class: 'si-top' }, '🏆 СЕРТИФИКАТ СТАЖЁРА'),
       el('h1', {}, progress.nickname),
       el('p', { class: 'si-goal' }, 'Пройдены все 5 профессий банка'),
@@ -251,7 +279,7 @@ export function certificate(progress) {
       week.length ? el('div', { class: 'cons-list' }, week.map((w) => el('div', { class: `cons ${w.good ? 'good' : 'bad'}` }, el('span', {}, w.icon), el('p', {}, w.text)))) : null,
       el('div', { class: 'cert-list' }, rows.map(([p, s]) => el('div', { style: { '--pc': p.color } }, el('span', {}, p.icon), el('b', {}, p.full), el('span', { class: 'kb-stars' }, `★ ${s}/15`)))),
       el('div', { class: 'cert-best', style: { '--pc': best.color } }, el('small', {}, 'Лучше всего получилось'), el('b', {}, `${best.icon} ${best.full}`)),
-      el('button', { class: 'btn primary', onClick: () => { audio.click(); close(); resolve(); } }, 'В холл'),
+      el('div', { class: 'row center' }, el('button', { class: 'btn ghost', onClick: () => { audio.click(); close(); resolve(); } }, 'В холл'), el('button', { class: 'btn primary', onClick: () => { audio.click(); close(); resolve('profile'); } }, '🧭 Профиль стажёра')),
     );
     audio.bigWin();
   });
@@ -348,7 +376,7 @@ export function badgeCard(progress) {
       el('div', { class: 'si-top' }, '🪪 МОЙ ПРОПУСК'),
       badgeEl(progress),
       el('p', { class: 'muted small' }, notes.length ? `💌 Благодарностей от клиентов: ${notes.length}. Они висят на стене в холле.` : '💌 Помоги клиентам — и они напишут тебе на стену благодарностей в холле.'),
-      el('button', { class: 'btn primary', onClick: () => { audio.click(); close(); resolve(); } }, 'Закрыть'),
+      el('div', { class: 'row center' }, el('button', { class: 'btn ghost', onClick: () => { audio.click(); close(); resolve(); } }, 'Закрыть'), el('button', { class: 'btn primary', onClick: () => { audio.click(); close(); resolve('profile'); } }, '🧭 Профиль стажёра')),
     );
     audio.notify();
   });

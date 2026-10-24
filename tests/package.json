@@ -11,7 +11,9 @@
     "screens": "node screens.mjs 1366 768 tours",
     "screens:phone": "node screens.mjs 390 844",
     "mouse": "node lock.mjs",
-    "monkey": "node monkey.mjs teller 5 normal 1"
+    "monkey": "node monkey.mjs teller 5 normal 1",
+    "profile": "node profile.mjs 1366 768 1",
+    "profile:phone": "node profile.mjs 390 844 1"
   },
   "dependencies": {
     "playwright": "^1.47.0"

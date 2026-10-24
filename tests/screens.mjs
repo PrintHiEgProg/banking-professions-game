@@ -63,6 +63,10 @@ await wait(1200);
 // пропуск, альбом, пауза, «как играть»
 await tap('#btn-badge');
 await shot('06-badge');
+// из пропуска — в профиль стажёра (пока закрыт: профессии ещё не попробованы)
+await tap('.screen-wrap.show .btn.primary');
+await wait(600);
+await shot('06b-profile');
 await tap('.screen-wrap.show .btn.primary');
 if (mobile) { await tap('#btn-pause'); await tap('#p-album'); } else await tap('#btn-album');
 await shot('07-album');
