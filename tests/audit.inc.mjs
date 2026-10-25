@@ -68,7 +68,7 @@ export async function audit(page, label) {
       if (!visible(btn)) continue;
       const b = btn.getBoundingClientRect();
       if ((b.bottom > vh + 2 || b.top < -2) && !inScroll(btn, document.body, 'y')) out.push(`кнопка вне экрана без прокрутки: «${btn.textContent.trim().slice(0, 30)}» ${Math.round(b.top)}…${Math.round(b.bottom)}`);
-      if (b.right > vw + 2 || b.left < -2) out.push(`кнопка за экраном по ширине: «${btn.textContent.trim().slice(0, 30)}» ${Math.round(b.left)}…${Math.round(b.right)}`);
+      if ((b.right > vw + 2 || b.left < -2) && !inScroll(btn, document.body, 'x')) out.push(`кнопка за экраном по ширине: «${btn.textContent.trim().slice(0, 30)}» ${Math.round(b.left)}…${Math.round(b.right)}`);
     }
     // фиксированные элементы HUD не должны наезжать друг на друга
     const hudEls = ['#objective.show', '#stats', '#hud-buttons', '#tut.show', '#toasts .toast.show', '#joystick'].map((q) => [...document.querySelectorAll(q)]).flat().filter(visible);

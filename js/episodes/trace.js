@@ -1,6 +1,6 @@
 // Смена 5. «След денег»: доска расследования с нитями, выписки, дробление, цифровой след.
 import { buildTrace } from '../data/chapter1.js';
-import { el, openPanel, termBar, sleep, money, moneyShort, fmtTime, flash, animateNumber } from '../ui.js';
+import { el, openPanel, termBar, sleep, money, moneyShort, fmtTime, flash, animateNumber, tour } from '../ui.js';
 import { portrait } from '../portraits.js';
 
 const SVG = {
@@ -477,5 +477,6 @@ export function runTrace(ctx) {
       layout();
       select('dima');
     });
+    setTimeout(() => tour('trace'), 600);
   });
 }

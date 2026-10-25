@@ -34,6 +34,7 @@ export class Controls {
     this.world = world;
     this.camera = world.camera;
     this.dom = dom;
+    this.sensMul = 1; // чувствительность камеры из настроек (0.4…2.5)
     this.onHover = onHover;
     this.onClick = onClick;
     this.onMiss = onMiss;
@@ -146,7 +147,7 @@ export class Controls {
     document.addEventListener('pointerlockerror', () => this._lockFailed());
     document.addEventListener('mousemove', (e) => {
       if (!this.locked || !this.enabled || this.tween) return;
-      const sens = 0.0024;
+      const sens = 0.0024 * this.sensMul;
       this.yaw -= (e.movementX || 0) * sens;
       this.pitch = Math.max(-1.25, Math.min(1.25, this.pitch - (e.movementY || 0) * sens));
     });
@@ -188,7 +189,7 @@ export class Controls {
       p.y = e.clientY;
       if (!p.moved && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 7) p.moved = true;
       if (p.moved) {
-        const sens = p.type === 'mouse' ? 0.0042 : 0.0065;
+        const sens = (p.type === 'mouse' ? 0.0042 : 0.0065) * this.sensMul;
         this.yaw -= dx * sens;
         this.pitch = Math.max(-1.2, Math.min(1.2, this.pitch - dy * sens));
         this._setHover(null);

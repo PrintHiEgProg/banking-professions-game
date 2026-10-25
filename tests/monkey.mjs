@@ -58,7 +58,7 @@ while (Date.now() - t0 < 240000) {
       if (prefix) await page.screenshot({ path: `shots/${prefix}-${seenPanels.size}-${key.replace(/[^a-z0-9]+/gi, '_')}.png` });
     }
     const did = await page.evaluate(([r1, r2, r3]) => {
-      const els = [...document.querySelectorAll('#overlay-root .panel button:not(:disabled), #overlay-root .panel input[type=range]')].filter((b) => b.offsetParent !== null);
+      const els = [...document.querySelectorAll('#overlay-root .panel button:not(:disabled):not(.hint-btn):not(.tour-btn), #overlay-root .panel input[type=range]')].filter((b) => b.offsetParent !== null);
       if (!els.length) return false;
       const prim = els.filter((b) => b.classList.contains('primary') || b.classList.contains('safe') || b.classList.contains('calm'));
       const pool = prim.length && r1 < 0.4 ? prim : els;

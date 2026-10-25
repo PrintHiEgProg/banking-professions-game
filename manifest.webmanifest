@@ -1,0 +1,18 @@
+{
+  "name": "Профессии в Банке",
+  "short_name": "Профессии",
+  "description": "3D-игра: попробуй 7 банковских профессий раньше, чем выберешь свою",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#050b09",
+  "theme_color": "#050b09",
+  "icons": [
+    { "src": "brand/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "brand/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "brand/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

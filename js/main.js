@@ -5,7 +5,7 @@ import { audio } from './audio.js';
 import { DIFFICULTY } from './data/config.js';
 import { PROFESSIONS, PROF, KNOWLEDGE } from './data/professions.js';
 import { loadSave, writeSave, clearSave, loadSettings, saveSettings, newProgress } from './save.js';
-import { $, el, sleep, toast, caption, setObjective, closePanel, typeText, skipTyping, flash, showSaved, num, isTourActive } from './ui.js';
+import { $, el, sleep, toast, caption, setObjective, closePanel, typeText, skipTyping, flash, showSaved, num, isTourActive, initHints, setHintShift, endHintShift, hintPenalty } from './ui.js';
 import './tours.js';
 import { loadBrand } from './brand.js';
 import { track, setContext, sessionStart, analyticsAllowed, setAnalytics } from './analytics.js';
@@ -21,8 +21,42 @@ import { runRules } from './episodes/rules.js';
 import { runCall } from './episodes/call.js';
 import { runTrace } from './episodes/trace.js';
 
-const settings = { sound: true, quality: null, nickname: '', difficulty: 'normal', jury: false, avatar: 0, joy: 'left', ...loadSettings() };
+const settings = { sound: true, quality: null, nickname: '', difficulty: 'normal', jury: false, avatar: 0, joy: 'left', bigText: false, sens: 1, musicVol: 1, sfxVol: 1, ...loadSettings() };
 const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+document.documentElement.classList.toggle('big-text', !!settings.bigText);
+audio.setVolumes({ music: settings.musicVol, sfx: settings.sfxVol });
+
+// Полный экран: на Android и компьютере — Fullscreen API; на iPhone его нет — подсказка «На экран Домой»
+const docEl = document.documentElement;
+const fsAvail = !!(docEl.requestFullscreen || docEl.webkitRequestFullscreen);
+const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+const fsOffer = () => !isStandalone() && (fsAvail || isIOS);
+// На телефоне (Android) вход в игру сразу разворачивает её на весь экран — адресная строка не мешает
+function autoFullscreen() {
+  if (!isTouch || !fsAvail || isFull() || isStandalone() || Math.min(innerWidth, innerHeight) >= 700) return;
+  try {
+    const r = (docEl.requestFullscreen || docEl.webkitRequestFullscreen).call(docEl, { navigationUI: 'hide' });
+    if (r && r.catch) r.catch(() => {});
+  } catch {
+    // браузер отказал — играем как есть
+  }
+}
+async function toggleFullscreen() {
+  audio.init();
+  audio.click();
+  if (fsAvail) {
+    try {
+      if (isFull()) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else await (docEl.requestFullscreen || docEl.webkitRequestFullscreen).call(docEl, { navigationUI: 'hide' });
+    } catch {
+      // браузер отказал — ничего страшного
+    }
+    return;
+  }
+  if (isIOS) await confirmBox('Чтобы играть во весь экран на iPhone: нажми «Поделиться» ⬆️ внизу Safari → «На экран „Домой“». Игра откроется со значка, как приложение — без адресной строки.', 'Понятно', null);
+}
 if (!settings.quality) settings.quality = isTouch || Math.min(window.innerWidth, window.innerHeight) < 600 ? 'low' : 'high';
 
 let world;
@@ -121,6 +155,8 @@ async function boot() {
   world.registerRoom('lobby', buildLobby);
   world.setRoom('lobby');
   controls = new Controls(world, $('#scene'), { onHover, onClick: interact, onMiss, onLock });
+  controls.sensMul = settings.sens || 1;
+  initHints({ isPaused: () => paused || isTourActive() });
   document.body.classList.toggle('can-lock', controls.lockAvailable);
   document.body.classList.toggle('touch', isTouch);
   sessionStart(isTouch ? (Math.min(innerWidth, innerHeight) >= 700 ? 'tablet' : 'mobile') : 'desktop');
@@ -235,12 +271,14 @@ function setupTitle() {
     cont.addEventListener('click', () => {
       audio.init();
       audio.resume();
+      autoFullscreen();
       begin(saved, false);
     });
   }
   start.addEventListener('click', async () => {
     audio.init();
     audio.resume();
+    autoFullscreen();
     if (saved && saved.knowledge.length) {
       const ok = await confirmBox('Начать заново? Весь прогресс будет сброшен.', 'Начать заново', 'Отмена');
       if (!ok) return;
@@ -258,6 +296,15 @@ function setupMenus() {
     for (const s of ['#btn-quality span', '#p-quality span']) $(s).textContent = settings.quality === 'high' ? 'высокая' : 'быстрая';
     $('#btn-jury span').textContent = settings.jury ? 'все открыты (режим жюри)' : 'по порядку';
     for (const s of ['#btn-joy span', '#p-joy span']) $(s).textContent = settings.joy === 'right' ? 'справа' : 'слева';
+    for (const s of ['#btn-text span', '#p-text span']) $(s).textContent = settings.bigText ? 'крупный' : 'обычный';
+    $('#p-diff span').textContent = { easy: 'лёгкая', normal: 'средняя', hard: 'сложная' }[progress?.difficulty || settings.difficulty] || 'средняя';
+    $('#p-diff small').textContent = { easy: 'больше времени и подсказок', normal: 'обычный темп', hard: 'без подсказок' }[progress?.difficulty || settings.difficulty] || '';
+    for (const s of ['#btn-full-title', '#p-full']) $(s).classList.toggle('hidden', !fsOffer());
+    $('#p-full span').textContent = isFull() ? '⛶ Обычный экран' : '⛶ Во весь экран';
+    $('#p-music').value = String(settings.musicVol);
+    $('#p-sfx').value = String(settings.sfxVol);
+    $('#p-sens').value = String(settings.sens);
+    $('#p-sens-val').textContent = `×${Number(settings.sens).toFixed(1)}`;
     $('#btn-stats span').textContent = analyticsAllowed() ? 'анонимная' : 'выкл';
     document.body.classList.toggle('joy-right', settings.joy === 'right');
     document.body.classList.toggle('muted', !settings.sound);
@@ -304,6 +351,59 @@ function setupMenus() {
     renderSettings();
   });
   $('#p-joy').addEventListener('click', toggleJoy);
+
+  // Крупный текст — для телефонов и тех, кому мелко
+  const toggleText = () => {
+    audio.init();
+    audio.click();
+    settings.bigText = !settings.bigText;
+    document.documentElement.classList.toggle('big-text', settings.bigText);
+    saveSettings(settings);
+    renderSettings();
+    world?.resize();
+  };
+  $('#btn-text').addEventListener('click', toggleText);
+  $('#p-text').addEventListener('click', toggleText);
+
+  // Сложность можно поменять посреди игры: действует со следующего задания
+  $('#p-diff').addEventListener('click', () => {
+    if (!progress) return;
+    audio.click();
+    const order = ['easy', 'normal', 'hard'];
+    const next = order[(order.indexOf(progress.difficulty) + 1) % order.length];
+    progress.difficulty = next;
+    settings.difficulty = next;
+    ctx.diff = DIFFICULTY[next] || DIFFICULTY.normal;
+    setContext({ difficulty: next });
+    saveSettings(settings);
+    save();
+    renderSettings();
+    track('difficulty_change', { data: { action: next } });
+  });
+
+  // Громкость музыки и звуков, чувствительность камеры
+  const slider = (sel, key, apply) => {
+    const inp = $(sel);
+    inp.addEventListener('input', () => {
+      settings[key] = Number(inp.value);
+      apply(settings[key]);
+      renderSettings();
+    });
+    inp.addEventListener('change', () => {
+      saveSettings(settings);
+      if (key === 'sfxVol') audio.coin();
+    });
+  };
+  slider('#p-music', 'musicVol', (v) => audio.setVolumes({ music: v }));
+  slider('#p-sfx', 'sfxVol', (v) => audio.setVolumes({ sfx: v }));
+  slider('#p-sens', 'sens', (v) => (controls.sensMul = v));
+
+  for (const s of ['#btn-full-title', '#p-full']) $(s).addEventListener('click', async () => {
+    await toggleFullscreen();
+    renderSettings();
+  });
+  document.addEventListener('fullscreenchange', renderSettings);
+  document.addEventListener('webkitfullscreenchange', renderSettings);
   renderSettings();
 
   const howto = $('#howto');
@@ -450,6 +550,7 @@ async function fadeTo(fn) {
 
 // ─────────────────────────── холл ───────────────────────────
 async function enterLobby() {
+  setHintShift(null);
   mode = 'lobby';
   currentProf = null;
   ctx.prof = null;
@@ -790,6 +891,7 @@ async function playShift(prof, n) {
   controls.setPose(room.spawn.pos, room.spawn.yaw, -0.06);
   if (ps.stage === 0) await shiftIntro(prof, shift);
   save();
+  setHintShift(`${prof.id}:${n}`);
   const shiftT0 = performance.now();
   track('shift_start', { prof: prof.id, shift: n });
 
@@ -811,8 +913,20 @@ async function playShift(prof, n) {
 
   const rankBefore = staffRank(progress).rank;
   const readyBefore = careerProfile(progress).ready;
-  const res = ps.pending || { stars: 1, stats: [] };
+  const res = { ...(ps.pending || { stars: 1, stats: [] }) };
   const stars = res.stars || 1;
+  // Подсказки: −10% очков смены за каждую (не больше 30%), звёзды остаются
+  const hintsUsed = endHintShift();
+  if (hintsUsed) {
+    const k = hintPenalty(hintsUsed);
+    const cut = Math.round(Math.max(0, res.score || 0) * k);
+    if (cut > 0) {
+      res.score -= cut;
+      ctx.addScore(-cut);
+    }
+    res.stats = [...(res.stats || []), ['💡', String(hintsUsed), `${hintsUsed === 1 ? 'подсказка' : 'подсказки'} · −${Math.round(k * 100)}% очков`]];
+    track('hints_used', { prof: prof.id, shift: n, value: hintsUsed });
+  }
   track('shift_end', { prof: prof.id, shift: n, stars, value: Math.round((performance.now() - shiftT0) / 1000) });
   const prev = ps.best[n];
   if (!prev || stars > prev.stars || (stars === prev.stars && (res.score || 0) > prev.score)) ps.best[n] = { stars, score: Math.max(0, res.score || 0) };
@@ -835,6 +949,10 @@ async function playShift(prof, n) {
     track('like', { prof: prof.id, shift: n, value: v });
   });
   if (!readyBefore && careerProfile(progress).ready && !progress.profileShown) await revealProfile();
+  if (choice === 'retry') {
+    track('shift_retry', { prof: prof.id, shift: n, stars });
+    return playShift(prof, n);
+  }
   if (last && choice === 'next') {
     const allDone = PROFESSIONS.every((p) => profDone(progress.profs[p.id]) === 5);
     const r = await professionSummary(prof, ps, ctx.diff, allDone && !progress.certificate);

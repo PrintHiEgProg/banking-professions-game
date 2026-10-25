@@ -30,6 +30,7 @@ class AudioEngine {
     this.loops = {};
     this.music = { timer: null, mood: null, step: 0 };
     this.heartBpm = 0;
+    this.vol = { music: 1, sfx: 1 }; // множители громкости из настроек (0…1)
   }
 
   init() {
@@ -46,9 +47,9 @@ class AudioEngine {
     this.master = c.createGain();
     this.master.gain.value = this.muted ? 0 : 0.9;
     this.master.connect(c.destination);
-    this.sfxBus = this._bus(0.8);
-    this.musicBus = this._bus(0.3);
-    this.ambBus = this._bus(0.6);
+    this.sfxBus = this._bus(0.8 * this.vol.sfx);
+    this.musicBus = this._bus(0.3 * this.vol.music);
+    this.ambBus = this._bus(0.6 * this.vol.sfx);
     const len = c.sampleRate * 2;
     this.noiseBuf = c.createBuffer(1, len, c.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
@@ -69,6 +70,16 @@ class AudioEngine {
 
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  }
+
+  // Отдельная громкость музыки и звуков (0…1); звуки окружения идут вместе со звуками
+  setVolumes({ music = this.vol.music, sfx = this.vol.sfx } = {}) {
+    this.vol = { music: Math.max(0, Math.min(1, music)), sfx: Math.max(0, Math.min(1, sfx)) };
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.musicBus.gain.setTargetAtTime(0.3 * this.vol.music, t, 0.05);
+    this.sfxBus.gain.setTargetAtTime(0.8 * this.vol.sfx, t, 0.05);
+    this.ambBus.gain.setTargetAtTime(0.6 * this.vol.sfx, t, 0.05);
   }
 
   setMuted(m) {

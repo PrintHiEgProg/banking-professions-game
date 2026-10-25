@@ -1,7 +1,7 @@
 // Смена 4. «Безопасный счёт»: проверки по делу и живой разговор с клиенткой.
 // Время измеряется ходами, а не секундами: пока игрок читает, ничего не тикает.
 import { CALL, CLIENT, EVIDENCE, KNOWLEDGE, SIGNALS } from '../data/chapter1.js';
-import { el, openPanel, closePanel, termBar, sleep, money, typeText, skipTyping, flash, VOICE } from '../ui.js';
+import { el, openPanel, closePanel, termBar, sleep, money, typeText, skipTyping, flash, VOICE, tour } from '../ui.js';
 import { portrait } from '../portraits.js';
 
 const TAGS = {
@@ -128,6 +128,7 @@ export function runCall(ctx) {
       };
       requestAnimationFrame(anim);
       audio.alarm(false);
+      setTimeout(() => tour('call_case'), 450);
     }
 
     async function startCall() {
@@ -259,6 +260,7 @@ export function runCall(ctx) {
             choicesBox.append(b);
           }
           scrollEnd();
+          setTimeout(() => tour('call_talk'), 300);
         });
       }
 

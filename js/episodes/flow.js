@@ -1,7 +1,7 @@
 // Смена 2. «Поток»: живой поток платежей. Решай быстро: пропустить или заблокировать.
 // Почти без текста: отклонения от привычек клиента подсвечены ⚠, решение — свайпом, кнопкой или стрелками.
 import { FLOW_CARDS } from '../data/chapter1.js';
-import { el, openPanel, termBar, money, moneyShort, flash, sleep } from '../ui.js';
+import { el, openPanel, termBar, money, moneyShort, flash, sleep, tour } from '../ui.js';
 
 const COLORS = ['#e76f51', '#2a9d8f', '#8e7dbe', '#e9a23b', '#4f8bd6', '#d1495b'];
 const HINT = { amount: (c) => `×${c.x}`, city: () => 'не свой город', night: () => 'ночь', device: () => 'впервые', to: () => 'впервые', call: () => 'на телефоне' };
@@ -83,6 +83,7 @@ export function runFlow(ctx) {
       if (idx === 0) {
         timer.classList.add('off');
         stack.append(el('div', { class: 'f-tutor' }, '⚠ = привычки клиента нарушены. Посчитай ⚠ и реши'));
+        setTimeout(() => tour('flow'), 450);
       }
       cancelAnimationFrame(raf);
       const tick = (now) => {

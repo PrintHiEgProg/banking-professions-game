@@ -1,7 +1,7 @@
 // Смена 3. «Правило»: собери антифрод-правило из сигналов и проверь его на вчерашних операциях.
 // Главная мысль профессии без лекций: строгое правило ловит всех, но бьёт по честным; мягкое — пропускает мошенников.
 import { RULE_DATA, SIGNALS } from '../data/chapter1.js';
-import { el, openPanel, termBar, sleep, flash } from '../ui.js';
+import { el, openPanel, termBar, sleep, flash, tour } from '../ui.js';
 
 const ORDER = ['amount', 'city', 'night', 'device', 'to', 'call'];
 
@@ -191,6 +191,7 @@ export function runRules(ctx) {
 
     renderPreview();
     requestAnimationFrame(() => layoutDots(null));
+    setTimeout(() => tour('rules'), 450);
     const onResize = () => layoutDots(lastRes ? evaluateRule(lastRes.rule, ops.map((o) => o.sig)) : null);
     window.addEventListener('resize', onResize);
     applyBtn.addEventListener('click', () => window.removeEventListener('resize', onResize));
