@@ -1,6 +1,7 @@
 // DOM-помощники: панели, всплывающие сообщения, задачи, счётчики, печатная машинка.
 import { audio } from './audio.js';
 import { portrait, NAMES, avatarSvg } from './portraits.js';
+import { HINTS, HINT_PENALTY, HINT_PENALTY_MAX } from './data/hints.js';
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -181,6 +182,7 @@ export function termBar(title, ctx, extra = null) {
     el('div', { class: 'term-title' }, title),
     extra,
     el('div', { class: 'term-user' }, el('span', { class: 'tu-ava', html: avatarSvg(ctx.state.avatar || 0) }), ctx.state.nickname),
+    el('button', { class: 'hint-btn', 'aria-label': 'Подсказка', title: 'Подсказка: что делать дальше (−10% очков смены)', onClick: () => showHint() }, '💡', el('span', { class: 'hb-label' }, 'Подсказка')),
     el('button', { class: 'tour-btn', 'aria-label': 'Как играть', title: 'Как играть', onClick: (e) => { const id = e.currentTarget.dataset.tour; if (id) tour(id, { force: true }); } }, '❓'),
   );
 }
@@ -226,7 +228,8 @@ export const VOICE = { gran: 420, irina: 560, mentor: 500, masha: 760, dima: 360
 const TOURS_KEY = 'bank.tours.v1';
 const TOURS = {};
 let tourOn = false;
-export const isTourActive = () => tourOn;
+let hintOn = false;
+export const isTourActive = () => tourOn || hintOn;
 export function defineTours(map) {
   Object.assign(TOURS, map);
 }
@@ -261,11 +264,15 @@ export function resetTours() {
   }
 }
 
+// Цель подсказки — только видимый элемент в открытом окне (не в том, что уже закрывается)
+const tourTarget = (sel) => [...document.querySelectorAll(sel)].find((n) => n.offsetParent !== null && !n.closest('.panel:not(.show)')) || null;
+
 export function tour(id, { force = false } = {}) {
   const steps = (TOURS[id] || []).filter((s) => !s.when || s.when());
-  const helpBtn = document.querySelector('#overlay-root .panel .tour-btn');
+  const helpBtn = document.querySelector('#overlay-root .panel.show .tour-btn') || document.querySelector('#overlay-root .panel .tour-btn');
   if (helpBtn && steps.length) helpBtn.dataset.tour = id;
   if (!steps.length || tourOn || (!force && (toursSeen()[id] || toursOff()))) return Promise.resolve();
+  if (!steps.some((s) => tourTarget(s.sel))) return Promise.resolve();
   tourOn = true;
   markTour(id);
   return new Promise((resolve) => {
@@ -306,17 +313,17 @@ export function tour(id, { force = false } = {}) {
     }
     function next() {
       i++;
-      while (i < steps.length && !document.querySelector(steps[i].sel)) i++;
+      while (i < steps.length && !tourTarget(steps[i].sel)) i++;
       if (i >= steps.length) return finish();
       const s = steps[i];
-      target = [...document.querySelectorAll(s.sel)].find((n) => n.offsetParent !== null) || document.querySelector(s.sel);
+      target = tourTarget(s.sel);
       try {
         target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       } catch {
         // старый браузер
       }
       bubble.innerHTML = '';
-      const last = i === steps.length - 1 || !steps.slice(i + 1).some((x) => document.querySelector(x.sel));
+      const last = i === steps.length - 1 || !steps.slice(i + 1).some((x) => tourTarget(x.sel));
       bubble.append(
         el('div', { class: 'tb-head' }, el('span', {}, '💡 Как играть'), el('small', {}, `${i + 1}/${steps.length}`)),
         el('p', {}, s.text),
@@ -335,4 +342,106 @@ export function tour(id, { force = false } = {}) {
     window.addEventListener('resize', place);
     next();
   });
+}
+
+// ───────── «💡 Подсказка», если игрок застрял ─────────
+// Кнопка появляется в шапке окна после 2 ошибок за смену или 40 секунд без действий.
+// Каждая открытая подсказка снимает 10% очков смены (не больше 30%); звёзды не трогаем.
+const IDLE_MS = 40000;
+const hintSt = { key: null, used: 0, mistakes: 0, ready: false, last: 0, isPaused: () => false };
+export const hintPenalty = (used) => Math.min(HINT_PENALTY_MAX, used * HINT_PENALTY);
+
+export function initHints({ isPaused }) {
+  hintSt.isPaused = isPaused;
+  hintSt.last = performance.now();
+  const poke = () => (hintSt.last = performance.now());
+  window.addEventListener('pointerdown', poke, true);
+  window.addEventListener('keydown', poke, true);
+  // любая «ошибка» в мини-игре звучит одинаково — по звуку и считаем
+  for (const m of ['wrong', 'fail']) {
+    const orig = audio[m].bind(audio);
+    audio[m] = (...a) => {
+      noteMistake();
+      return orig(...a);
+    };
+  }
+  setInterval(() => {
+    const now = performance.now();
+    if (!hintSt.key || hintSt.ready) return;
+    const open = document.querySelector('#overlay-root .panel.show .term-bar');
+    if (!open || hintSt.isPaused() || document.hidden) {
+      hintSt.last = now;
+      return;
+    }
+    if (now - hintSt.last > IDLE_MS) setHintReady(true);
+  }, 1000);
+}
+
+export function setHintShift(key) {
+  hintSt.key = key && HINTS[key] ? key : null;
+  hintSt.used = 0;
+  hintSt.mistakes = 0;
+  hintSt.last = performance.now();
+  setHintReady(false);
+}
+
+// Конец смены: сколько подсказок открыли
+export function endHintShift() {
+  const used = hintSt.used;
+  setHintShift(null);
+  return used;
+}
+
+export function noteMistake() {
+  if (!hintSt.key) return;
+  hintSt.mistakes++;
+  if (hintSt.mistakes >= 2) setHintReady(true);
+}
+
+function setHintReady(v) {
+  const was = hintSt.ready;
+  hintSt.ready = !!v && !!hintSt.key;
+  document.body.classList.toggle('hint-ready', hintSt.ready);
+  if (hintSt.ready && !was) {
+    document.body.classList.add('hint-new');
+    setTimeout(() => document.body.classList.remove('hint-new'), 6000);
+  }
+}
+
+export function showHint() {
+  const list = HINTS[hintSt.key];
+  if (!list || hintOn || tourOn) return;
+  hintOn = true;
+  document.body.classList.remove('hint-new');
+  audio.click();
+  const root = el('div', { id: 'hint-pop', role: 'dialog', 'aria-label': 'Подсказка' });
+  const card = el('div', { class: 'hint-card' });
+  root.append(card);
+  document.body.append(root);
+  const close = () => {
+    root.remove();
+    hintOn = false;
+    hintSt.last = performance.now();
+  };
+  root.addEventListener('click', (e) => {
+    if (e.target === root) close();
+  });
+  const render = () => {
+    card.innerHTML = '';
+    const shown = list.slice(0, Math.max(1, hintSt.used));
+    const pen = Math.round(hintPenalty(hintSt.used) * 100);
+    card.append(
+      el('div', { class: 'hc-head' }, el('b', {}, '💡 Подсказка'), el('small', {}, `${shown.length} из ${list.length} · −${pen}% очков смены`)),
+      el('ol', { class: 'hc-list' }, shown.map((t) => el('li', {}, t))),
+      el(
+        'div',
+        { class: 'hc-btns' },
+        hintSt.used < list.length ? el('button', { class: 'btn ghost small', onClick: () => { audio.click(); hintSt.used++; render(); } }, `Ещё подсказка${hintPenalty(hintSt.used + 1) > hintPenalty(hintSt.used) ? ' (−10%)' : ''}`) : null,
+        el('button', { class: 'btn primary small', onClick: () => { audio.click(); close(); } }, 'Понятно ✓'),
+      ),
+    );
+    card.querySelector('.btn.primary').focus({ preventScroll: true });
+  };
+  if (hintSt.used === 0) hintSt.used = 1;
+  render();
 }

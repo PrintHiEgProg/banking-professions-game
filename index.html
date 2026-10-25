@@ -6,6 +6,12 @@
   <title>Профессии в Банке</title>
   <meta name="description" content="3D-игра «Профессии в Банке»: операционист, кредитный эксперт, финансовый консультант, инкассатор, специалист по финансовой безопасности, HR-специалист и DevOps-инженер — по 5 смен в каждой.">
   <meta name="theme-color" content="#050b09">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="brand/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Профессии">
   <!-- адрес серверных функций на Vercel: /api/events (статистика), /api/cbr (курсы ЦБ); без этой строки игра работает без них -->
   <meta name="bank-api" content="/api">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23050b09'/%3E%3Cpath d='M10 26 32 12l22 14Z' fill='%233ddc84'/%3E%3Cpath d='M17 30v18M27 30v18M37 30v18M47 30v18' stroke='%233ddc84' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M10 53h44' stroke='%233ddc84' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -94,6 +100,8 @@
         <button id="btn-quality" class="link-btn">Графика: <span></span></button>
         <button id="btn-sound-title" class="link-btn">Звук: <span></span></button>
         <button id="btn-joy" class="link-btn touch-only" title="Для левшей и игры одной рукой">Джойстик: <span></span></button>
+        <button id="btn-text" class="link-btn" title="Крупнее подписи и кнопки — удобнее на телефоне">Текст: <span></span></button>
+        <button id="btn-full-title" class="link-btn touch-only hidden">⛶ Во весь экран</button>
         <button id="btn-stats" class="link-btn" title="Без имён и регистрации: какие профессии выбирают и что нравится — чтобы банк делал игру и стажировки лучше">Статистика: <span></span></button>
         <button id="btn-jury" class="link-btn" title="Для жюри и демонстрации: любую смену можно открыть сразу">Смены: <span></span></button>
       </div>
@@ -114,9 +122,18 @@
       <h2>Пауза</h2>
       <button id="p-resume" class="btn primary">Продолжить</button>
       <button id="p-album" class="btn ghost">📒 Мои знания</button>
-      <button id="p-sound" class="btn ghost">Звук: <span></span></button>
-      <button id="p-quality" class="btn ghost">Графика: <span></span></button>
-      <button id="p-joy" class="btn ghost touch-only">Джойстик: <span></span></button>
+      <h4 class="p-sec">Настройки</h4>
+      <button id="p-diff" class="btn ghost p-diff">Сложность: <span></span><small></small></button>
+      <div class="p-grid">
+        <button id="p-text" class="btn ghost">Текст: <span></span></button>
+        <button id="p-quality" class="btn ghost">Графика: <span></span></button>
+        <button id="p-sound" class="btn ghost">Звук: <span></span></button>
+        <button id="p-full" class="btn ghost hidden"><span>⛶ Во весь экран</span></button>
+        <button id="p-joy" class="btn ghost touch-only">Джойстик: <span></span></button>
+      </div>
+      <label class="p-slider"><span>🎵 Музыка</span><input id="p-music" type="range" min="0" max="1" step="0.05" aria-label="Громкость музыки"></label>
+      <label class="p-slider"><span>🔊 Звуки</span><input id="p-sfx" type="range" min="0" max="1" step="0.05" aria-label="Громкость звуков"></label>
+      <label class="p-slider"><span>🖱 Камера <b id="p-sens-val"></b></span><input id="p-sens" type="range" min="0.4" max="2.5" step="0.1" aria-label="Чувствительность камеры"></label>
       <button id="p-howto" class="btn ghost">Как играть</button>
       <button id="p-lobby" class="btn ghost hidden">🏦 Выйти в холл банка</button>
       <button id="p-menu" class="btn ghost">💾 Сохранить и выйти в меню</button>
@@ -137,6 +154,10 @@
         <div><b>📒 Знания</b><span>Карточки, собранные за смены</span></div>
         <div><b>🧭 Профиль</b><span>Попробуй 5 профессий из 7 — карьерный стенд в холле скажет, какая подходит тебе</span></div>
         <div><b>💾 Сохранение</b><span>Автоматически после каждого шага</span></div>
+        <div><b>❓ Как играть</b><span>Кнопка в шапке окна задания — повторит обучение по этой механике</span></div>
+        <div><b>💡 Подсказка</b><span>Застрял? После двух ошибок или 40 секунд без действий в шапке окна появится подсказка (−10% очков смены)</span></div>
+        <div><b>↻ Переиграть</b><span>Любую смену можно сыграть ещё раз — в зачёт идёт лучший результат</span></div>
+        <div><b>⚙️ Настройки</b><span>Пауза: сложность, крупный текст, громкость музыки и звуков, чувствительность камеры, полный экран</span></div>
       </div>
       <button id="howto-close" class="btn primary">Понятно</button>
     </div>

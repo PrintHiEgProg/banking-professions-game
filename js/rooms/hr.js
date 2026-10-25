@@ -36,7 +36,7 @@ export function build(world) {
   const rug = k.plane(3.2, 2.6, k.M(0xe9c9d6, { roughness: 1 }), 0, 0.006, 0.6);
   rug.rotation.x = -Math.PI / 2;
   const tableG = new THREE.Group();
-  k.cyl(0.85, 0.85, 0.06, k.M(0xfdf8f2, { roughness: 0.35 }), 0, 0.76, 0, tableG, 40);
+  k.cyl(0.85, 0.85, 0.06, k.M(0xeadfd2, { roughness: 0.75 }), 0, 0.76, 0, tableG, 40);
   k.cyl(0.08, 0.12, 0.72, wood, 0, 0.37, 0, tableG);
   k.cyl(0.42, 0.42, 0.04, wood, 0, 0.02, 0, tableG);
   // на столе: резюме, ручка, стаканы воды

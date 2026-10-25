@@ -200,9 +200,10 @@ export function debrief(prof, shift, res, ps, isLast, plot = [], promo = null, o
         'div',
         { class: 'row center' },
         el('button', { class: 'btn ghost', onClick: () => pick('cabinet') }, '← В кабинет'),
+        el('button', { class: 'btn ghost db-retry', title: 'Сыграть эту смену ещё раз — в зачёт идёт лучший результат', onClick: () => pick('retry') }, '↻ Переиграть'),
         el('button', { class: 'btn primary big', onClick: () => pick('next') }, isLast ? 'Итоги профессии →' : 'Следующая смена →'),
       ),
-      el('div', { class: 'db-saved' }, '💾 Прогресс сохранён'),
+      el('div', { class: 'db-saved' }, (res.stars || 1) < 3 ? '💾 Прогресс сохранён · переиграй смену, чтобы собрать ★★★ — в зачёт идёт лучший результат' : '💾 Прогресс сохранён'),
     );
     audio.bigWin();
   });
@@ -490,6 +491,6 @@ export function confirmBox(text, yes, no) {
       close();
       resolve(v);
     };
-    box.append(el('p', {}, text), el('div', { class: 'row center' }, el('button', { class: 'btn ghost', onClick: () => pick(false) }, no), el('button', { class: 'btn primary', onClick: () => pick(true) }, yes)));
+    box.append(el('p', {}, text), el('div', { class: 'row center' }, no ? el('button', { class: 'btn ghost', onClick: () => pick(false) }, no) : null, el('button', { class: 'btn primary', onClick: () => pick(true) }, yes)));
   });
 }

@@ -1,0 +1,7 @@
+# В деплой идёт только сама игра: index.html, css, js, vendor
+tests
+screenshots
+README.md
+*.zip
+analytics
+node_modules

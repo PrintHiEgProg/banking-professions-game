@@ -448,12 +448,16 @@ export function runTeller(ctx, shift) {
           notesBox.append(n);
           return n;
         });
-        const uvBtn = el('button', { class: 'btn ghost uv-btn' }, '🔦 УФ-лампа');
+        const uvBtn = el('button', { class: 'btn ghost uv-btn', title: 'Под лампой у настоящих купюр светятся защитные волокна' }, '🔦 УФ-лампа');
+        const UV_TIP = ['🔦 Под УФ-лампой у настоящей купюры светятся защитные волокна и полоска', '✨ Светится — настоящая. Не светится — подделка: нажми на неё и «⚠ Проблема»'];
+        const uvTip = el('small', { class: 'muted uv-tip' }, UV_TIP[0]);
         uvBtn.addEventListener('click', () => {
           uv = !uv;
           audio.click();
           notesBox.classList.toggle('uv', uv);
           uvBtn.classList.toggle('on', uv);
+          uvTip.textContent = UV_TIP[uv ? 1 : 0];
+          uvTip.classList.toggle('on', uv);
         });
         const okBtn = el('button', { class: 'btn primary', disabled: true }, `✓ Зачислить ${money(c.claim)}`);
         const probBtn = el('button', { class: 'btn danger' }, '⚠ Проблема');
@@ -462,8 +466,10 @@ export function runTeller(ctx, shift) {
           el('small', { class: 'muted' }, '👆 Нажми на каждую купюру, чтобы пересчитать'),
           notesBox,
           el('div', { class: 'tray-row' }, el('span', {}, 'Посчитано: ', countEl), uvBtn),
+          uvTip,
           el('div', { class: 'row' }, probBtn, okBtn),
         );
+        setTimeout(() => tour('teller_cash'), 350);
         probBtn.addEventListener('click', async () => {
           audio.click();
           const id = await pickProblem(['fake', 'count']);
