@@ -59,8 +59,12 @@ const okCabinet = s.wrap?.includes('cabinet') && s.buttons.some((b) => b.include
 await page.evaluate(() => document.querySelector('.screen-wrap.show .btn.ghost')?.click());
 await page.waitForFunction(() => window.__bank.mode === 'lobby' && !document.querySelector('.screen-wrap.show'), null, { timeout: 20000 }).catch(() => {});
 await page.waitForTimeout(800);
-await page.evaluate((p) => { const r = window.__bank.world.rooms[p]; r.__orig = r.setShift; r.setShift = () => { throw new Error('сломалось-нарочно'); }; window.__bank.interact({ id: `door_${p}` }); }, prof);
-await page.waitForFunction(() => document.querySelector('.screen-wrap.show .screen-card.prof-card button.primary'), null, { timeout: 20000 }).catch(() => {});
+await page.evaluate((p) => { const r = window.__bank.world.rooms[p]; r.__orig = r.setShift; r.setShift = () => { throw new Error('сломалось-нарочно'); }; }, prof);
+// холл ещё «занят» анимацией входа — стучимся в дверь, пока не откроется карточка профессии
+for (let i = 0; i < 12; i++) {
+  await page.evaluate((p) => { window.__bank.interact({ id: `door_${p}` }); }, prof);
+  if (await page.waitForFunction(() => document.querySelector('.screen-wrap.show .screen-card.prof-card button.primary'), null, { timeout: 2500 }).then(() => true).catch(() => false)) break;
+}
 await page.evaluate(() => document.querySelector('.screen-wrap.show .btn.primary')?.click());
 await page.waitForFunction(() => document.querySelector('.screen-wrap.show .screen-card.confirm'), null, { timeout: 30000 }).catch(() => {});
 await page.waitForTimeout(500);
