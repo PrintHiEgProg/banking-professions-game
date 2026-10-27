@@ -160,7 +160,10 @@ export function openPanel(className = '') {
   const p = el('div', { class: `panel ${className}` });
   root.append(p);
   root.classList.add('active');
-  requestAnimationFrame(() => requestAnimationFrame(() => p.classList.add('show')));
+  const show = () => p.classList.add('show');
+  requestAnimationFrame(() => requestAnimationFrame(show));
+  // на медленном компьютере кадры 3D могут идти редко — окно всё равно должно появиться
+  setTimeout(show, 150);
   return p;
 }
 

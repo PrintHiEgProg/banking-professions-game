@@ -12,13 +12,22 @@ export function overlay(cls) {
   const box = el('div', { class: `screen-card ${cls}` });
   const wrap = el('div', { class: 'screen-wrap' }, box);
   document.body.append(wrap);
-  requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('show')));
+  const show = () => wrap.classList.add('show');
+  requestAnimationFrame(() => requestAnimationFrame(show));
+  // на медленном компьютере кадры 3D могут идти редко — окно всё равно должно появиться
+  setTimeout(show, 150);
   const close = () => {
     wrap.classList.remove('show');
     setTimeout(() => wrap.remove(), 350);
   };
   return { box, close, wrap };
 }
+
+// «★★☆»: защита от странных чисел в старых сохранениях
+const starText = (n) => {
+  const k = Math.max(0, Math.min(3, Math.round(Number(n) || 0)));
+  return '★'.repeat(k) + '☆'.repeat(3 - k);
+};
 
 export const profStars = (ps) => Object.values(ps?.best || {}).reduce((s, b) => s + b.stars, 0);
 export const profDone = (ps) => Object.keys(ps?.best || {}).length;
@@ -36,7 +45,7 @@ export function skillStrip(prof, ps, highlight = 0) {
         { class: `skill${best ? ' done' : ''}${s.n === highlight ? ' now' : ''}` },
         el('span', { class: 'skill-ico' }, s.icon),
         el('small', {}, s.skill),
-        best ? el('span', { class: 'skill-stars' }, '★'.repeat(best.stars)) : null,
+        best ? el('span', { class: 'skill-stars' }, '★'.repeat(Math.max(0, Math.min(3, Math.round(Number(best.stars) || 0))))) : null,
       );
     }),
   );
@@ -111,7 +120,7 @@ export function cabinetCard(prof, ps) {
       close();
       resolve(v);
     };
-    const next = Math.min(ps.shift, 5);
+    const next = Math.min(Math.max(1, Number(ps.shift) || 1), 5);
     box.append(
       el('div', { class: 'si-top' }, `КАБИНЕТ · ${prof.full.toUpperCase()}`),
       el('h1', {}, `${prof.icon} ${prof.title}`),
@@ -128,7 +137,7 @@ export function cabinetCard(prof, ps) {
             el('span', { class: 'map-ico' }, open ? s.icon : '🔒'),
             el('b', {}, s.title),
             el('small', {}, s.skill),
-            el('span', { class: 'map-stars' }, best ? '★'.repeat(best.stars) + '☆'.repeat(3 - best.stars) : ''),
+            el('span', { class: 'map-stars' }, best ? starText(best.stars) : ''),
           );
           if (open) card.addEventListener('click', () => pick(s.n));
           return card;
@@ -491,6 +500,6 @@ export function confirmBox(text, yes, no) {
       close();
       resolve(v);
     };
-    box.append(el('p', {}, text), el('div', { class: 'row center' }, no ? el('button', { class: 'btn ghost', onClick: () => pick(false) }, no) : null, el('button', { class: 'btn primary', onClick: () => pick(true) }, yes)));
+    box.append(el('p', { style: { whiteSpace: 'pre-line' } }, text), el('div', { class: 'row center' }, no ? el('button', { class: 'btn ghost', onClick: () => pick(false) }, no) : null, el('button', { class: 'btn primary', onClick: () => pick(true) }, yes)));
   });
 }

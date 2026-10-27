@@ -5,7 +5,7 @@
 // интеграция Neon/Postgres в Vercel → Storage. Нет базы — функция отвечает 204 и ничего не пишет.
 import pg from 'pg';
 
-const EVENTS = new Set(['session_start', 'game_start', 'tutorial_done', 'cabinet_enter', 'shift_start', 'shift_end', 'like', 'profile_ready', 'profile_open', 'career_click', 'share_card', 'certificate', 'hints_used', 'shift_retry', 'difficulty_change']);
+const EVENTS = new Set(['session_start', 'game_start', 'tutorial_done', 'cabinet_enter', 'shift_start', 'shift_end', 'like', 'profile_ready', 'profile_open', 'career_click', 'share_card', 'certificate', 'hints_used', 'shift_retry', 'difficulty_change', 'client_error', 'quality_auto_low']);
 const PROFS = new Set(['teller', 'credit', 'advisor', 'cash', 'security', 'hr', 'devops']);
 const AGES = new Set(['7-10', '11-13', '14+']);
 const DEVICES = new Set(['mobile', 'tablet', 'desktop']);

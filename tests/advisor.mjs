@@ -7,7 +7,7 @@ const N = Number(shiftArg);
 const shots = shotsArg === '1';
 const tag = `adv${N}-${diff}-${mode}${wArg !== '1366' ? `-${wArg}x${hArg}` : ''}`;
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: Number(wArg), height: Number(hArg) }, hasTouch: wArg !== '1366', isMobile: wArg !== '1366' });
+const page = await browser.newPage({ viewport: { width: Number(wArg), height: Number(hArg) }, hasTouch: wArg !== '1366' && !process.env.DESK, isMobile: wArg !== '1366' && !process.env.DESK });
 const errors = [];
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 3).join('\n')));
 page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_TUNNEL')) errors.push('console: ' + m.text()); });

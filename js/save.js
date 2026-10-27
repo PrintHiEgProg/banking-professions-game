@@ -32,12 +32,41 @@ export function newProgress(nickname, difficulty) {
   };
 }
 
+// Чиним сохранение профессии, если оно осталось от старой версии игры или повредилось:
+// номер смены 1–5, звёзды 1–3, служебные поля — нужного типа. Иначе кабинет может не открыться.
+const clampInt = (v, min, max, def) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.min(max, Math.max(min, Math.round(Number(v)))) : def);
+export function normalizeProf(ps) {
+  const base = newProfState();
+  const p = { ...base, ...(ps && typeof ps === 'object' ? ps : {}) };
+  p.shift = clampInt(p.shift, 1, 5, 1);
+  p.unlocked = Math.max(clampInt(p.unlocked, 1, 5, 1), p.shift);
+  p.stage = clampInt(p.stage, 0, 9, 0);
+  const best = {};
+  if (p.best && typeof p.best === 'object') {
+    for (const [k, b] of Object.entries(p.best)) {
+      const n = Number(k);
+      if (!(n >= 1 && n <= 5) || b == null) continue;
+      const stars = typeof b === 'object' ? b.stars : b;
+      best[n] = { stars: clampInt(stars, 1, 3, 1), score: Math.max(0, Number(b?.score) || 0) };
+    }
+  }
+  p.best = best;
+  // пройденные смены и следующая за ними всегда открыты
+  const doneMax = Math.max(0, ...Object.keys(best).map(Number));
+  p.unlocked = Math.max(p.unlocked, Math.min(5, doneMax + 1));
+  if (!p.data || typeof p.data !== 'object') p.data = {};
+  if (p.pending && typeof p.pending !== 'object') p.pending = null;
+  return p;
+}
+
 export function loadSave() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (!data || data.version !== 3) return null;
     const base = newProgress(data.nickname, data.difficulty);
-    return { ...base, ...data, profs: { ...base.profs, ...data.profs } };
+    const profs = { ...base.profs, ...(data.profs && typeof data.profs === 'object' ? data.profs : {}) };
+    for (const id of PROF_IDS) profs[id] = normalizeProf(profs[id]);
+    return { ...base, ...data, profs };
   } catch {
     return null;
   }

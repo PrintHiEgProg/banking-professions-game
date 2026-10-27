@@ -853,6 +853,7 @@ export class World {
 
   setQuality(q) {
     this.quality = q;
+    this.renderer.shadowMap.enabled = q === 'high';
     if (q === 'high' && !this.composer) this._setupPost();
     if (q !== 'high') this.composer = null;
     this.resize();

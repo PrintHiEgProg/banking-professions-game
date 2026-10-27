@@ -4,7 +4,7 @@ import { Controls } from './controls.js';
 import { audio } from './audio.js';
 import { DIFFICULTY } from './data/config.js';
 import { PROFESSIONS, PROF, KNOWLEDGE } from './data/professions.js';
-import { loadSave, writeSave, clearSave, loadSettings, saveSettings, newProgress } from './save.js';
+import { loadSave, writeSave, clearSave, loadSettings, saveSettings, newProgress, normalizeProf } from './save.js';
 import { $, el, sleep, toast, caption, setObjective, closePanel, typeText, skipTyping, flash, showSaved, num, isTourActive, initHints, setHintShift, endHintShift, hintPenalty } from './ui.js';
 import './tours.js';
 import { loadBrand } from './brand.js';
@@ -57,7 +57,12 @@ async function toggleFullscreen() {
   }
   if (isIOS) await confirmBox('Чтобы играть во весь экран на iPhone: нажми «Поделиться» ⬆️ внизу Safari → «На экран „Домой“». Игра откроется со значка, как приложение — без адресной строки.', 'Понятно', null);
 }
+// Графику выбираем сами, пока игрок не переключил её вручную (qualityAuto === false)
 if (!settings.quality) settings.quality = isTouch || Math.min(window.innerWidth, window.innerHeight) < 600 ? 'low' : 'high';
+const qualityAuto = () => settings.qualityAuto !== false;
+// На «быстрой» графике выключаем размытие под окнами: на слабых компьютерах оно тормозит сильнее всего
+const applyQualityClass = () => document.body.classList.toggle('gfx-low', settings.quality !== 'high');
+applyQualityClass();
 
 let world;
 let controls;
@@ -141,6 +146,30 @@ function refreshHud() {
   set('#stat-score', num(progress.stats.score));
 }
 
+function softwareGL() {
+  try {
+    const gl = world.renderer.getContext();
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
+  } catch {
+    return false;
+  }
+}
+
+function setLowQuality(tell) {
+  settings.quality = 'low';
+  world.setQuality('low');
+  applyQualityClass();
+  saveSettings(settings);
+  for (const s of ['#btn-quality span', '#p-quality span']) {
+    const n = $(s);
+    if (n) n.textContent = 'быстрая';
+  }
+  track('quality_auto_low');
+  if (tell) toast({ who: 'mentor', emo: 'neutral', text: 'Компьютер не успевает за красивой графикой — включила быструю, так игра пойдёт плавнее. Вернуть можно в паузе.', duration: 6000 });
+}
+
 // ─────────────────────────── запуск ───────────────────────────
 async function boot() {
   try {
@@ -156,6 +185,8 @@ async function boot() {
   world.setRoom('lobby');
   controls = new Controls(world, $('#scene'), { onHover, onClick: interact, onMiss, onLock });
   controls.sensMul = settings.sens || 1;
+  // Без видеокарты (программная отрисовка WebGL) красивая графика превращает игру в слайд-шоу
+  if (settings.quality === 'high' && qualityAuto() && softwareGL()) setLowQuality(false);
   initHints({ isPaused: () => paused || isTourActive() });
   document.body.classList.toggle('can-lock', controls.lockAvailable);
   document.body.classList.toggle('touch', isTouch);
@@ -166,9 +197,25 @@ async function boot() {
   window.addEventListener('resize', () => world.resize());
   const overlayRoot = $('#overlay-root');
   let last = performance.now();
+  // Сторож плавности: если на «красивой» графике кадры идут медленнее ~18 в секунду, переключаемся на быструю
+  const slow = [];
   const frame = (now) => {
-    const dt = Math.min(0.1, (now - last) / 1000);
+    const raw = now - last;
+    const dt = Math.min(0.1, raw / 1000);
     last = now;
+    if (settings.quality === 'high' && qualityAuto() && mode !== 'title' && !world.throttle && !document.hidden && raw < 3000) {
+      // решаем по ~4 секундам игры (не меньше 10 кадров): единичные рывки при загрузке комнаты не считаются
+      slow.push(raw);
+      let sum = slow.reduce((a, b) => a + b, 0);
+      while (slow.length > 10 && sum - slow[0] >= 4000) sum -= slow.shift();
+      if (slow.length >= 10 && sum >= 4000) {
+        const med = [...slow].sort((a, b) => a - b)[slow.length >> 1];
+        if (med > 55) {
+          slow.length = 0;
+          setLowQuality(true);
+        }
+      }
+    }
     if (mode === 'title') attract(dt);
     world.throttle = overlayRoot.classList.contains('active') || !!document.querySelector('.screen-wrap.show');
     controls.update(dt);
@@ -319,6 +366,8 @@ function setupMenus() {
   };
   const toggleQuality = () => {
     settings.quality = settings.quality === 'high' ? 'low' : 'high';
+    settings.qualityAuto = false;
+    applyQualityClass();
     world.setQuality(settings.quality);
     saveSettings(settings);
     renderSettings();
@@ -543,9 +592,13 @@ async function fadeTo(fn) {
   const f = $('#fade');
   f.classList.add('on');
   await sleep(380);
-  await fn();
-  await sleep(80);
-  f.classList.remove('on');
+  try {
+    await fn();
+    await sleep(80);
+  } finally {
+    // даже если внутри что-то сломалось, экран не остаётся чёрным
+    f.classList.remove('on');
+  }
 }
 
 // ─────────────────────────── холл ───────────────────────────
@@ -800,20 +853,25 @@ async function enterRoom(prof) {
   busy = true;
   controls.setEnabled(false);
   setObjective(null);
-  await fadeTo(async () => {
-    if (!world.rooms[prof.room] && !world.builders[prof.room]) {
-      const mod = await import(`./rooms/${prof.room}.js`);
-      world.registerRoom(prof.room, mod.build);
-    }
-    const room = world.setRoom(prof.room);
-    controls.setArea(room.bounds, room.obstacles);
-    controls.dropFocus();
-    controls.setPose(room.spawn.pos, room.spawn.yaw, -0.06);
-    setupShift(prof, prof.shifts[Math.min(ctx.prof.shift, 5) - 1]);
-  });
+  Object.assign(ctx.prof, normalizeProf(ctx.prof));
+  try {
+    await fadeTo(async () => {
+      if (!world.rooms[prof.room] && !world.builders[prof.room]) {
+        const mod = await import(`./rooms/${prof.room}.js`);
+        world.registerRoom(prof.room, mod.build);
+      }
+      const room = world.setRoom(prof.room);
+      controls.setArea(room.bounds, room.obstacles);
+      controls.dropFocus();
+      controls.setPose(room.spawn.pos, room.spawn.yaw, -0.06);
+      setupShift(prof, prof.shifts[ctx.prof.shift - 1]);
+    });
+  } catch (e) {
+    return recover(e, prof);
+  }
   save();
-  if (ctx.prof.stage > 0) playShift(prof, ctx.prof.shift);
-  else cabinetLoop(prof);
+  if (ctx.prof.stage > 0) playShift(prof, ctx.prof.shift).catch((e) => recover(e, prof));
+  else cabinetLoop(prof).catch((e) => recover(e, prof));
 }
 
 async function cabinetLoop(prof) {
@@ -822,8 +880,45 @@ async function cabinetLoop(prof) {
   setObjective(null);
   world.setMarker(null);
   const choice = await cabinetCard(prof, progress.profs[prof.id]);
+  recoverTries = 0;
   if (choice === 'lobby') return enterLobby();
-  playShift(prof, choice);
+  return playShift(prof, choice);
+}
+
+// Если в кабинете что-то сломалось (старое сохранение, редкий браузер), игрок не должен застрять
+// перед пустым окном: убираем недостроенные окна и предлагаем начать смену заново или выйти в холл.
+let recoverTries = 0;
+async function recover(err, prof) {
+  console.error(err);
+  track('client_error', { prof: prof?.id || null, data: { source: 'cabinet' } });
+  for (const w of document.querySelectorAll('.screen-wrap')) w.remove();
+  if ($('#overlay-root').classList.contains('active')) closePanel();
+  $('#fade').classList.remove('on');
+  busy = true;
+  controls.setEnabled(false);
+  setObjective(null);
+  world.setMarker(null);
+  recoverTries++;
+  const why = String(err?.message || err || 'неизвестная ошибка').slice(0, 160);
+  const ps = prof ? progress.profs[prof.id] : null;
+  const again = recoverTries < 2;
+  const ok = await confirmBox(
+    `Кабинет не смог открыться. Звёзды и пройденные смены сохранены.\n\n${again ? 'Попробуем начать текущую смену заново?' : 'Можно сбросить начатую смену этой профессии — пройденные смены останутся.'}\n\nДля разработчиков: ${why}`,
+    again ? '↻ Начать смену заново' : '🧹 Сбросить и войти',
+    '🏦 В холл',
+  );
+  if (ok && prof && ps) {
+    ps.stage = 0;
+    ps.pending = null;
+    if (!again) {
+      ps.data = {};
+      Object.assign(ps, normalizeProf(ps));
+    }
+    save();
+    return enterRoom(prof);
+  }
+  recoverTries = 0;
+  return enterLobby();
 }
 
 async function leaveRoom(force = false) {
