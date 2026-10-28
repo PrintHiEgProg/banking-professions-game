@@ -2290,3 +2290,6 @@ body.hint-new .hint-btn { animation: hintPulse 1.1s ease-in-out infinite; }
 /* ───────── слабый компьютер: «быстрая» графика без размытия под окнами ───────── */
 body.gfx-low *, body.gfx-low *::before, body.gfx-low *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 body.gfx-low .screen-wrap, body.gfx-low #pause, body.gfx-low #howto { background: rgba(0, 0, 0, 0.72); }
+
+#err-banner { display: none; position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 200; padding: 8px 12px; border-radius: 10px; background: #5a0c16; color: #fff; font: 600 12px var(--mono); line-height: 1.4; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
+#err-banner.show { display: block; }

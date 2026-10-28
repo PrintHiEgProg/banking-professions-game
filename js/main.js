@@ -1209,6 +1209,7 @@ async function runStep(prof, shift, step) {
     return await RUNNERS[step.run](step);
   } catch (e) {
     console.error(e);
+    showErr(e, step.run);
     closePanel();
     return { stars: 1, stats: [] };
   }
@@ -1306,5 +1307,24 @@ function faceTarget() {
   audio.click();
   controls.turnTo([pt[0], pt[1] - 0.2, pt[2]]);
 }
+
+// Видимая плашка с ошибкой: если у игрока что-то сломалось, скриншот сразу покажет причину
+function showErr(e, where = '') {
+  try {
+    const msg = String(e?.message || e?.reason?.message || e?.reason || e || 'ошибка').slice(0, 200);
+    const at = e?.filename ? ` · ${e.filename.split('/').slice(-2).join('/')}:${e.lineno}` : e?.stack ? ` · ${(String(e.stack).split('\n').find((l) => /\.js/.test(l)) || '').trim().slice(0, 120)}` : '';
+    let b = document.getElementById('err-banner');
+    if (!b) {
+      b = el('div', { id: 'err-banner', role: 'alert' });
+      document.body.append(b);
+    }
+    b.textContent = `⚠ Ошибка${where ? ` (${where})` : ''}: ${msg}${at} · ${navigator.userAgent.match(/(Chrome|Firefox|Version|YaBrowser|Edg)\/[\d.]+/g)?.join(' ') || ''}`;
+    b.classList.add('show');
+  } catch {
+    // ничего
+  }
+}
+window.addEventListener('error', (e) => { if (e.message && !/ResizeObserver/.test(e.message)) showErr(e); });
+window.addEventListener('unhandledrejection', (e) => showErr(e.reason || e));
 
 boot();
