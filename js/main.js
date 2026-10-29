@@ -604,6 +604,7 @@ async function fadeTo(fn) {
 // ─────────────────────────── холл ───────────────────────────
 async function enterLobby() {
   setHintShift(null);
+  setTimeout(preloadModules, 2500);
   mode = 'lobby';
   currentProf = null;
   ctx.prof = null;
@@ -857,7 +858,7 @@ async function enterRoom(prof) {
   try {
     await fadeTo(async () => {
       if (!world.rooms[prof.room] && !world.builders[prof.room]) {
-        const mod = await import(`./rooms/${prof.room}.js`);
+        const mod = await loadModule(`./rooms/${prof.room}.js`);
         world.registerRoom(prof.room, mod.build);
       }
       const room = world.setRoom(prof.room);
@@ -901,6 +902,19 @@ async function recover(err, prof) {
   recoverTries++;
   const why = String(err?.message || err || 'неизвестная ошибка').slice(0, 160);
   const ps = prof ? progress.profs[prof.id] : null;
+  // файл не скачался: браузер запоминает неудачу до перезагрузки — перезагружаем страницу, прогресс сохранён
+  if (/Не загрузился файл|Failed to fetch|dynamically imported|Importing a module|error loading/i.test(String(err?.message || err))) {
+    if (ps) {
+      ps.stage = 0;
+      ps.pending = null;
+    }
+    progress.current = null;
+    save();
+    const re = await confirmBox('Не получилось скачать часть игры — похоже, связь прервалась. Прогресс сохранён.\n\nПроверь интернет и нажми «Перезагрузить».', '🔄 Перезагрузить', '🏦 В холл');
+    if (re) return location.reload();
+    recoverTries = 0;
+    return enterLobby();
+  }
   const again = recoverTries < 2;
   const ok = await confirmBox(
     `Кабинет не смог открыться. Звёзды и пройденные смены сохранены.\n\n${again ? 'Попробуем начать текущую смену заново?' : 'Можно сбросить начатую смену этой профессии — пройденные смены останутся.'}\n\nДля разработчиков: ${why}`,
@@ -1105,7 +1119,7 @@ function waitForTarget(step) {
 // Задания смен: имя из данных → механика
 async function episode(file, fn, focus) {
   await ctx.focus(focus);
-  const mod = await import(`./episodes/${file}.js`);
+  const mod = await loadModule(`./episodes/${file}.js`);
   const r = await mod[fn](ctx, ctx.shift);
   closePanel();
   return r;
@@ -1326,5 +1340,37 @@ function showErr(e, where = '') {
 }
 window.addEventListener('error', (e) => { if (e.message && !/ResizeObserver/.test(e.message)) showErr(e); });
 window.addEventListener('unhandledrejection', (e) => showErr(e.reason || e));
+
+// Модули кабинетов грузятся по сети при входе. На плохом мобильном интернете (или когда *.vercel.app
+// режется провайдером) запрос может сорваться, а браузер запоминает неудачный импорт до перезагрузки.
+// Поэтому: несколько попыток с новым адресом и фоновая подгрузка всех кабинетов сразу после входа в холл.
+const modCache = new Map();
+async function loadModule(path) {
+  if (modCache.has(path)) return modCache.get(path);
+  let last;
+  for (let i = 0; i < 4; i++) {
+    try {
+      const mod = await import(i ? `${path}?retry=${Date.now()}` : path);
+      modCache.set(path, mod);
+      return mod;
+    } catch (e) {
+      last = e;
+      await sleep(600 * (i + 1));
+    }
+  }
+  throw new Error(`Не загрузился файл игры ${path.replace('./', '')} — похоже, пропал интернет. Проверь связь и нажми «Начать смену заново». (${last?.message || last})`);
+}
+let preloaded = false;
+function preloadModules() {
+  if (preloaded) return;
+  preloaded = true;
+  const list = ['rooms/teller', 'rooms/credit', 'rooms/advisor', 'rooms/cash', 'rooms/hr', 'rooms/devops', 'episodes/teller', 'episodes/credit', 'episodes/advisor', 'episodes/cash', 'episodes/hr', 'episodes/devops'];
+  (async () => {
+    for (const f of list) {
+      await loadModule(`./${f}.js`).catch(() => {});
+      await sleep(150);
+    }
+  })();
+}
 
 boot();
